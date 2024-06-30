@@ -1,7 +1,12 @@
-from model import n, m
+from model_params import n
 import numpy as np
 
-results_doc = [[[ 0.13419576, 21.1887173],
+results_doc = []
+for x in range(0, 10):
+    from model import training_pairs
+    results_doc = results_doc + training_pairs
+
+results_docs = [[[ 0.13419576, 21.1887173],
  [-3.99852032, -3.97426419],
  [-4.39994205, -4.39497996],
  [-4.39996582, -4.39699213],
@@ -57,7 +62,7 @@ results_doc = [[[ 0.13419576, 21.1887173],
                ]
 sample_pairs_cut = []
 
-for results in results_doc:
+for results in results_docs:
     sample_pairs = [(np.array(results[i]), np.array(results[i+1])) for i in range(len(results) - 1)]
 
     flag = True
@@ -90,8 +95,8 @@ class SimpleNN(nn.Module):
 
 
 # Custom loss function
-def custom_loss(f_x, f_x_prime, epsilon):
-    return torch.sum(F.relu(f_x_prime - f_x + epsilon))
+def custom_loss(V_x, f_x_prime, epsilon):
+    return torch.sum(F.relu(f_x_prime - V_x + epsilon))
 
 
 # Example usage
@@ -107,10 +112,11 @@ if __name__ == '__main__':
     # Instantiate the neural network
     model = SimpleNN(input_size, hidden_size, output_size)
 
-    X = torch.tensor(np.array([sample_pairs_cut[i][0] for i in range(num_samples)]), dtype=torch.float32)
-    X_prime = torch.tensor(np.array([sample_pairs_cut[i][1] for i in range(num_samples)]), dtype=torch.float32)
+    X = torch.tensor(np.array([i[0][0] for i in results_doc]), dtype=torch.float32)
+    X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).permute(1,0,2)
 
-    print(X, X_prime)
+
+    #print(X, X_prime)
     # Define optimizer
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
@@ -119,11 +125,21 @@ if __name__ == '__main__':
         model.train()
 
         # Forward pass
-        f_x = model(X)
-        f_x_prime = model(X_prime)
+        V_x = model(X)
+        V_x_prime = [None for j in X_prime]
+        for j in range(len(X_prime)):
+            V_x_prime[j] = model(X_prime[j])
+
+        V_x_prime = torch.stack(V_x_prime).permute(1, 0, 2)
+
+        E_V_x_prime = []
+        for j in V_x_prime:
+            E_V_x_prime.append([sum(j) / len(j)])
+
+        E_V_x_prime = torch.tensor(E_V_x_prime)
 
         # Compute loss
-        loss = custom_loss(f_x, f_x_prime, epsilon)
+        loss = custom_loss(V_x, E_V_x_prime, epsilon)
 
         # Backward pass and optimize
         optimizer.zero_grad()

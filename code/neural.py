@@ -2,7 +2,7 @@ from model_params import n
 import numpy as np
 
 results_doc = []
-for x in range(0, 10):
+for x in range(0, 100):
     from model import training_pairs
     results_doc = results_doc + training_pairs
 
@@ -102,11 +102,11 @@ def custom_loss(V_x, f_x_prime, epsilon):
 # Example usage
 if __name__ == '__main__':
     input_size = n
-    hidden_size = n
+    hidden_size = 10
     output_size = 1
-    num_samples = len(sample_pairs_cut)
-    epsilon = 0.1
-    learning_rate = 0.01
+    #num_samples = len(sample_pairs_cut)
+    epsilon = 0.000001
+    learning_rate = 0.00001
     num_epochs = 1000
 
     # Instantiate the neural network
@@ -123,20 +123,9 @@ if __name__ == '__main__':
     # Training loop
     for epoch in range(num_epochs):
         model.train()
-
-        # Forward pass
         V_x = model(X)
-        V_x_prime = [None for j in X_prime]
-        for j in range(len(X_prime)):
-            V_x_prime[j] = model(X_prime[j])
-
-        V_x_prime = torch.stack(V_x_prime).permute(1, 0, 2)
-
-        E_V_x_prime = []
-        for j in V_x_prime:
-            E_V_x_prime.append([sum(j) / len(j)])
-
-        E_V_x_prime = torch.tensor(E_V_x_prime)
+        V_x_prime = torch.stack([model(x) for x in X_prime]).permute(1, 0, 2)
+        E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
         # Compute loss
         loss = custom_loss(V_x, E_V_x_prime, epsilon)
@@ -146,7 +135,7 @@ if __name__ == '__main__':
         loss.backward()
         optimizer.step()
 
-        if epoch % 100 == 0:
+        if epoch % 50 == 0:
             print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item():.4f}')
 
     # Evaluation

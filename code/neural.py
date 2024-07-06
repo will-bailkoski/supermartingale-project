@@ -2,7 +2,7 @@ from model_params import n
 import numpy as np
 
 results_doc = []
-for x in range(0, 100):
+for _ in range(0, 100):
     from model import training_pairs
     results_doc = results_doc + training_pairs
 
@@ -90,7 +90,8 @@ class SimpleNN(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        # x = self.fc2(x)
+        x = F.relu(self.fc2(x))
         return x
 
 
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     output_size = 1
     #num_samples = len(sample_pairs_cut)
     epsilon = 0.000001
-    learning_rate = 0.00001
+    learning_rate = 0.0000001
     num_epochs = 1000
 
     # Instantiate the neural network
@@ -124,7 +125,7 @@ if __name__ == '__main__':
     for epoch in range(num_epochs):
         model.train()
         V_x = model(X)
-        V_x_prime = torch.stack([model(x) for x in X_prime]).permute(1, 0, 2)
+        V_x_prime = torch.stack([model(i) for i in X_prime]).permute(1, 0, 2)
         E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
         # Compute loss

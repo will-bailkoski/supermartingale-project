@@ -6,7 +6,7 @@ s = Solver()
 
 # model state
 x = [Real(f'x_{i}') for i in range(n)]
-A = SetSort(IntSort())  # TODO: Define the set A (you'll need to specify this based on your problem)
+A = SetSort(IntSort())  # TODO: Define the set A
 s.add(Not(x in A))
 
 

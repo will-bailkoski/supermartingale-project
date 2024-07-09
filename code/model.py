@@ -44,6 +44,11 @@ def state_noise(state, outcome, old_state):
 
     return state
 
+def transition_kernel(C, previous_state, B, r, sample):
+    Cx = np.dot(C, previous_state)
+    Bphi = np.dot(B, phi(previous_state))
+
+    return state_noise(Cx + r - Bphi, sample, previous_state)  # add noise
 
 def run_simulation_X(C, r, B, X_initial, time_steps, samples):
 
@@ -52,12 +57,8 @@ def run_simulation_X(C, r, B, X_initial, time_steps, samples):
     X[0] = X_initial
 
     for t in range(1, time_steps):
+        X[t] = transition_kernel(C, X[t-1], B, r, samples[t-1])
 
-
-        Cx = np.dot(C, X[t-1])
-        Bphi = np.dot(B, phi(X[t-1]))
-
-        X[t] = state_noise(Cx + r - Bphi, samples[t-1], X[t-1])  # add noise
 
     return X
 

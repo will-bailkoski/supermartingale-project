@@ -101,49 +101,48 @@ def custom_loss(V_x, f_x_prime, epsilon):
 
 
 # Example usage
-if __name__ == '__main__':
-    input_size = n
-    hidden_size = 10
-    output_size = 1
-    #num_samples = len(sample_pairs_cut)
-    epsilon = 0.000001
-    learning_rate = 0.0000001
-    num_epochs = 1000
+input_size = n
+hidden_size = 10
+output_size = 1
+#num_samples = len(sample_pairs_cut)
+epsilon = 0.000001
+learning_rate = 0.0000001
+num_epochs = 1000
 
-    # Instantiate the neural network
-    model = SimpleNN(input_size, hidden_size, output_size)
+# Instantiate the neural network
+model = SimpleNN(input_size, hidden_size, output_size)
 
-    X = torch.tensor(np.array([i[0][0] for i in results_doc]), dtype=torch.float32)
-    X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).permute(1,0,2)
+X = torch.tensor(np.array([i[0][0] for i in results_doc]), dtype=torch.float32)
+X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).permute(1,0,2)
 
 
-    #print(X, X_prime)
-    # Define optimizer
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+#print(X, X_prime)
+# Define optimizer
+optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
-    # Training loop
-    for epoch in range(num_epochs):
-        model.train()
-        V_x = model(X)
-        V_x_prime = torch.stack([model(i) for i in X_prime]).permute(1, 0, 2)
-        E_V_x_prime = torch.mean(V_x_prime, dim=1)
+# Training loop
+for epoch in range(num_epochs):
+    model.train()
+    V_x = model(X)
+    V_x_prime = torch.stack([model(i) for i in X_prime]).permute(1, 0, 2)
+    E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
-        # Compute loss
-        loss = custom_loss(V_x, E_V_x_prime, epsilon)
+    # Compute loss
+    loss = custom_loss(V_x, E_V_x_prime, epsilon)
 
-        # Backward pass and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    # Backward pass and optimize
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-        if epoch % 50 == 0:
-            print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item():.4f}')
+    if epoch % 50 == 0:
+        print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item():.4f}')
 
-    # Evaluation
-    model.eval()
-    with torch.no_grad():
-        f_x = model(X)
-        f_x_prime = model(X_prime)
-        final_loss = custom_loss(f_x, f_x_prime, epsilon)
-        print(f'Final Loss: {final_loss.item():.4f}')
+# Evaluation
+model.eval()
+with torch.no_grad():
+    f_x = model(X)
+    f_x_prime = model(X_prime)
+    final_loss = custom_loss(f_x, f_x_prime, epsilon)
+    print(f'Final Loss: {final_loss.item():.4f}')
 

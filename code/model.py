@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 
-num_samples = 5
-
 outcomes = ['up', 'down']  # brownian motion
 noise_pmf = [0.5, 0.5]
 
@@ -38,9 +36,9 @@ def state_noise(state, outcome, old_state):
 
     for k in range(len(state)):
         if outcome[k] == 'down':
-            state[k] = state[k] - (0.1 * state[k])  # action 1
+            state[k] = state[k] - (0.05 * state[k])  # action 1
         else:
-            state[k] = state[k] + (0.1 * state[k])  # action 2
+            state[k] = state[k] + (0.05 * state[k])  # action 2
 
     return state
 
@@ -59,7 +57,6 @@ def run_simulation_X(C, r, B, X_initial, time_steps, samples):
     for t in range(1, time_steps):
         X[t] = transition_kernel(C, X[t-1], B, r, samples[t-1])
 
-
     return X
 
 
@@ -73,7 +70,7 @@ r = np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p)
 
 
 
-time_steps = 15
+time_steps = 10
 samples = []
 for i in range(time_steps):
     samples.append(list(np.random.choice(outcomes, size=n, p=noise_pmf)))
@@ -94,3 +91,6 @@ plt.legend([str(i + 1) for i in range(0, n)] + ['Failure Threshold'])
 plt.grid(linestyle='-', linewidth='0.5', color='grey')
 
 plt.show()
+
+
+

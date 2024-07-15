@@ -9,6 +9,7 @@ solver = Solver()
 
 # state
 x = [Real(f"X_{i}") for i in range(n)]
+
 solver.add()  # TODO: state constraints, including not being in set A
 
 # model parameters

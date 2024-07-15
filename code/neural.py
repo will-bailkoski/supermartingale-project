@@ -1,84 +1,18 @@
-from model_params import n
 import numpy as np
-
+from model_params import A
 results_doc = []
 for _ in range(0, 100):
     from model import training_pairs
-    results_doc = results_doc + training_pairs
+    results_doc = results_doc + [element for element in training_pairs if not A.contains_point(element[0][0])] # set removal
 
-results_docs = [[[ 0.13419576, 21.1887173],
- [-3.99852032, -3.97426419],
- [-4.39994205, -4.39497996],
- [-4.39996582, -4.39699213],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225],
- [-4.39996593, -4.39699225]],
-[[ 7.8538794,  23.41230307],
- [-3.71808042, -3.98361007],
- [-4.38991492, -4.39836543],
- [-4.39403031, -4.39922208],
- [-4.39403881, -4.39922733],
- [-4.39403886, -4.39922734],
- [-4.39403887, -4.39922734],
- [-4.39403887, -4.39922734],
- [-4.39403887, -4.39922734],
- [-4.39403887, -4.39922734],
- [-4.39403887, -4.39922734]],
-
-[[15.34852195, 11.81208337],
- [-3.83351269, -3.87603145],
- [-4.38886952, -4.39289345],
- [-4.39398792, -4.39627683],
- [-4.39402143, -4.39630801],
- [-4.39402174, -4.39630822],
- [-4.39402174, -4.39630822],
- [-4.39402174, -4.39630822]],
-
-[[16.83752832, 21.48290304],
- [-3.85545896, -3.9054783 ],
- [-4.39402621, -4.39504596],
- [-4.39669822, -4.3973771 ],
- [-4.39671094, -4.39738866],
- [-4.39671101, -4.39738872],
- [-4.39671101, -4.39738872]],
-[[17.98231987, -2.45992697],
- [-3.98824843, -4.2434027 ],
- [-4.39649962, -4.39310611],
- [-4.39719222, -4.39588786],
- [-4.39720509, -4.39589258],
- [-4.39720511, -4.39589267],
- [-4.39720512, -4.39589267]],
-[[22.98208896,  0.02931804],
- [-3.97618002, -3.90364441],
- [-4.39480741, -4.3964745 ],
- [-4.39714157, -4.39791604],
- [-4.39714839, -4.39792407],
- [-4.39714843, -4.3979241 ],
- [-4.39714843, -4.3979241 ]]
-               ]
-sample_pairs_cut = []
-
-for results in results_docs:
-    sample_pairs = [(np.array(results[i]), np.array(results[i+1])) for i in range(len(results) - 1)]
-
-    flag = True
-    for i in range(len(sample_pairs)):
-        if all(np.isclose(sample_pairs[i][0], sample_pairs[i][1], rtol=1e-08, atol=1e-08)):
-            if flag:
-                sample_pairs_cut = sample_pairs_cut + sample_pairs[:i]
-                flag = False
 
 ### ----- Neural Network stuff ------ ###
-
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from model_params import n
 
 
 # Define the neural network
@@ -106,7 +40,7 @@ hidden_size = 10
 output_size = 1
 #num_samples = len(sample_pairs_cut)
 epsilon = 0.000001
-learning_rate = 0.0000001
+learning_rate = 0.0001
 num_epochs = 1000
 
 # Instantiate the neural network

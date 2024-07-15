@@ -1,5 +1,6 @@
 # List of hyperparameters
 import numpy as np
+from equilibrium_set import EquilibriumSet
 
 n = 2      # number of players
 m = 2     # number of assets
@@ -20,3 +21,6 @@ beta = np.array([beta]).T
 
 V_threshold = np.array([[5] * n]).T  # Failure thresholds                           # definable
 X_initial = np.array([np.random.uniform(0, 30, n)]).T                               # definable
+
+
+A = EquilibriumSet([-4.2, -4.2], 0.3)

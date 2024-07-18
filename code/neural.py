@@ -1,7 +1,7 @@
 import numpy as np
 from model_params import A
 results_doc = []
-for _ in range(0, 2):
+for _ in range(0, 50):
     from run_model import training_pairs
     results_doc = results_doc + [element for element in training_pairs if not A.contains_point(element[0])] # set removal
 
@@ -40,7 +40,7 @@ hidden_size = 10
 output_size = 1
 epsilon = 0.000001
 learning_rate = 0.0001
-num_epochs = 1000
+num_epochs = 500
 
 # Instantiate the neural network
 model = SimpleNN(input_size, hidden_size, output_size)
@@ -75,7 +75,7 @@ model.eval()
 with torch.no_grad():
     V_x = model(X)
     V_x_prime = torch.stack([model(i) for i in X_prime])
-    torch.mean(V_x_prime, dim=1)
+    E_V_x_prime = torch.mean(V_x_prime, dim=1)
     final_loss = custom_loss(V_x, E_V_x_prime, epsilon)
     print(f'Final Loss: {final_loss.item():.4f}')
 

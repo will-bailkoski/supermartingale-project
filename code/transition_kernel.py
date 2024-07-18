@@ -1,3 +1,5 @@
+# Should be used for the generation of training pairs
+
 import numpy as np
 from itertools import product
 

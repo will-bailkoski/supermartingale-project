@@ -1,6 +1,6 @@
 from z3 import *
 import numpy as np
-from model_params import n
+from model_params import n, C, B, V_threshold, D, p
 
 solver = Solver()
 
@@ -18,9 +18,7 @@ squared_distance = sum((p - c) ** 2 for p, c in zip(x, center))
 solver.add(squared_distance > radius ** 2)
 
 # model parameters
-from model_params import C, B, V_threshold, D, p
 
-# Convert numpy arrays to Z3 expressions
 def np_to_float_list(arr):
     if isinstance(arr, np.ndarray):
         return arr.tolist()
@@ -43,11 +41,14 @@ def P(x):
 
 ### NEURAL NETWORK
 
-h = 10
+from neural import hidden_size, epsilon, W1, W2, B1, B2
+print("\n\n\nVerification")
 
-# weights
-W1 = [[Real(f"W1_{i}_{j}") for j in range(h)] for i in range(n)]
-W2 = [[Real(f"W2_{i}_{j}") for j in range(1)] for i in range(h)]
+# weights and biases
+W1 = np_to_float_list(W1)
+W2 = np_to_float_list(W2)
+B1 = np_to_float_list(B1)
+B2 = np_to_float_list(B2)
 
 # relu function
 def relu(x):
@@ -55,16 +56,15 @@ def relu(x):
 
 # neural network
 def V(x):
-    layer1 = [Sum([W1[i][j] * x[i] for i in range(n)]) for j in range(h)]
+    layer1 = [Sum([W1[j][i] * x[i] for i in range(n)]) + B1[j] for j in range(hidden_size)]
     relu_layer = [relu(val) for val in layer1]
-    layer2 = Sum([W2[i][0] * relu_layer[i] for i in range(h)])
+    layer2 = Sum([W2[0][i] * relu_layer[i] for i in range(hidden_size)]) + B2[0]
     return relu(layer2)
 
 ### SUPERMARTINGALE PROPERTIES
 
 V_x = V(x)
 
-epsilon = Real("epsilon")
 solver.add(epsilon > 0)
 
 x_tplus1 = P(x)
@@ -78,5 +78,6 @@ solver.add(E_V_X_tplus1 > V_x - epsilon)
 if solver.check() == sat:
     m = solver.model()
     print("Satisfiable")
+    print(m)
 else:
     print("Unsatisfiable")

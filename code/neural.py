@@ -1,9 +1,9 @@
 import numpy as np
 from model_params import A
 results_doc = []
-for _ in range(0, 100):
-    from model import training_pairs
-    results_doc = results_doc + [element for element in training_pairs if not A.contains_point(element[0][0])] # set removal
+for _ in range(0, 2):
+    from run_model import training_pairs
+    results_doc = results_doc + [element for element in training_pairs if not A.contains_point(element[0])] # set removal
 
 
 ### ----- Neural Network stuff ------ ###
@@ -30,15 +30,14 @@ class SimpleNN(nn.Module):
 
 
 # Custom loss function
-def custom_loss(V_x, f_x_prime, epsilon):
-    return torch.sum(F.relu(f_x_prime - V_x + epsilon))
+def custom_loss(V_x, E_V_x_prime, epsilon):
+    return torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
 
 
 # Example usage
 input_size = n
 hidden_size = 10
 output_size = 1
-#num_samples = len(sample_pairs_cut)
 epsilon = 0.000001
 learning_rate = 0.0001
 num_epochs = 1000
@@ -46,11 +45,10 @@ num_epochs = 1000
 # Instantiate the neural network
 model = SimpleNN(input_size, hidden_size, output_size)
 
-X = torch.tensor(np.array([i[0][0] for i in results_doc]), dtype=torch.float32)
-X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).permute(1,0,2)
+X = torch.tensor(np.array([i[0] for i in results_doc]), dtype=torch.float32).squeeze(-1)
 
+X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).squeeze(-1)
 
-#print(X, X_prime)
 # Define optimizer
 optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
@@ -58,7 +56,7 @@ optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 for epoch in range(num_epochs):
     model.train()
     V_x = model(X)
-    V_x_prime = torch.stack([model(i) for i in X_prime]).permute(1, 0, 2)
+    V_x_prime = torch.stack([model(i) for i in X_prime])
     E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
     # Compute loss
@@ -75,8 +73,13 @@ for epoch in range(num_epochs):
 # Evaluation
 model.eval()
 with torch.no_grad():
-    f_x = model(X)
-    f_x_prime = model(X_prime)
-    final_loss = custom_loss(f_x, f_x_prime, epsilon)
+    V_x = model(X)
+    V_x_prime = torch.stack([model(i) for i in X_prime])
+    torch.mean(V_x_prime, dim=1)
+    final_loss = custom_loss(V_x, E_V_x_prime, epsilon)
     print(f'Final Loss: {final_loss.item():.4f}')
 
+# model_weights = {}
+# for name, param in model.named_parameters():
+#     if param.requires_grad:
+#         model_weights[name] = param.data.numpy()

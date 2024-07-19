@@ -4,7 +4,7 @@ results_doc = []
 for _ in range(0, 50):
     from run_model import training_pairs
     results_doc = results_doc + [element for element in training_pairs if not A.contains_point(element[0])] # set removal
-
+print(len(results_doc))
 
 ### ----- Neural Network stuff ------ ###
 
@@ -36,7 +36,7 @@ def custom_loss(V_x, E_V_x_prime, epsilon):
 
 # Example usage
 input_size = n
-hidden_size = 10
+hidden_size = 5
 output_size = 1
 epsilon = 0.000001
 learning_rate = 0.0001

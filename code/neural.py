@@ -1,5 +1,6 @@
 import numpy as np
-from model_params import A
+from model_params import n, A, C, B, V_threshold, D, p
+
 results_doc = []
 for _ in range(0, 50):
     from run_model import training_pairs
@@ -12,7 +13,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from model_params import n
 
 
 # Define the neural network

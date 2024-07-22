@@ -41,14 +41,13 @@ def P(x):
 
 ### NEURAL NETWORK
 
-from neural import hidden_size, epsilon, W1, W2, B1, B2
 print("\n\n\nVerification")
 
 # weights and biases
-W1 = np_to_float_list(W1)
-W2 = np_to_float_list(W2)
-B1 = np_to_float_list(B1)
-B2 = np_to_float_list(B2)
+# W1 = np_to_float_list(W1)
+# W2 = np_to_float_list(W2)
+# B1 = np_to_float_list(B1)
+# B2 = np_to_float_list(B2)
 
 # relu function
 def relu(x):

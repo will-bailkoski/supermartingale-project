@@ -6,16 +6,16 @@ def z3_value_to_double(val):
     if is_real(val):
         # For RatNumRef (rational numbers)
         return val.numerator().as_long() / val.denominator().as_long()
-    elif is_int(val):
-        # For IntNumRef (integers)
-        return float(val.as_long())
-    elif is_true(val):
-        return 1.0
-    elif is_false(val):
-        return 0.0
-    elif is_algebraic_value(val):
-        # For algebraic numbers
-        return val.approx(20)  # 20 digits of precision, adjust if needed
+    # elif is_int(val):
+    #     # For IntNumRef (integers)
+    #     return float(val.as_long())
+    # elif is_true(val):
+    #     return 1.0
+    # elif is_false(val):
+    #     return 0.0
+    # elif is_algebraic_value(val):
+    #     # For algebraic numbers
+    #     return val.approx(20)  # 20 digits of precision, adjust if needed
     else:
         # For other types, attempt to get a string representation and convert
         try:
@@ -38,14 +38,12 @@ def verify_model(n, h, equil_set, C, B, V_threshold, D, p, r, epsilon, W1, W2, B
     solver.add(squared_distance > radius ** 2)
 
     # model parameters
-    C_ = C.tolist() if isinstance(C, np.ndarray) else C
-    B_ = B.tolist() if isinstance(B, np.ndarray) else B
-    V_threshold_ = V_threshold.tolist() if isinstance(V_threshold, np.ndarray) else V_threshold
-    D_ = D.tolist() if isinstance(D, np.ndarray) else D
-    p_ = p.tolist() if isinstance(p, np.ndarray) else p
+    C_ = C.tolist()
+    B_ = B.tolist()
+    V_threshold_ = V_threshold.tolist()
+    D_ = D.tolist()
+    p_ = p.tolist()
     r_ = r.T[0].tolist()
-    #r_ = [Sum([C[i][j] * V_threshold[j][0] for j in range(n)]) - V_threshold[i][0] + Sum(
-    #    [D[i][j] * p[j][0] for j in range(len(p))]) for i in range(n)]
 
     # transition kernel
     def P(x):

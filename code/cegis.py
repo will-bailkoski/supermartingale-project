@@ -33,9 +33,9 @@ def custom_loss(V_x, E_V_x_prime, epsilon):
 input_size = n
 hidden_size = 10
 output_size = 1
-epsilon = 0.00000001
+epsilon = 0.000001
 learning_rate = 0.001
-num_epochs = 500
+num_epochs = 100
 max_iterations = 50
 
 # Instantiate the neural network

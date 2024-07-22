@@ -1,7 +1,5 @@
-
-from itertools import product
-
-list1 = ['0.9x', '1.1x']
-list2 = ['0.9y', '1.1y']
-list3 = ['0.9z', '1.1z']
-print(list(product(list1, list2, list3)))
+import numpy as np
+n =2
+C = np.random.uniform(0, 0.01, (n, n))
+np.fill_diagonal(C, 0)
+print(C)

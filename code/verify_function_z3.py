@@ -1,21 +1,18 @@
 from z3 import *
-import numpy as np
 from model_params import min_bound, max_bound
 
 
 def z3_value_to_double(val):
     if is_real(val):
-        # For RatNumRef (rational numbers)
         return val.numerator().as_long() / val.denominator().as_long()
     else:
-        # For other types, attempt to get a string representation and convert
         try:
             return float(str(val))
         except ValueError:
             raise ValueError(f"Cannot convert {val} of type {type(val)} to double")
 
 
-def verify_model(n, h, equil_set, C, B, V_threshold, D, p, r, epsilon, W1, W2, B1, B2):
+def verify_model(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
     solver = Solver()
 
     # state
@@ -27,32 +24,26 @@ def verify_model(n, h, equil_set, C, B, V_threshold, D, p, r, epsilon, W1, W2, B
         solver.add(xi <= max_bound)
 
     # set A
-    center = equil_set.center
-    radius = equil_set.radius
-
-    squared_distance = sum((p_ - c[0]) ** 2 for p_, c in zip(x, center))
-    solver.add(squared_distance > radius ** 2)
+    squared_distance = sum((p_ - c[0]) ** 2 for p_, c in zip(x, equil_set.center))
+    solver.add(squared_distance > equil_set.radius ** 2)
 
     # model parameters
-    C_ = C.tolist()
-    B_ = B.tolist()
-    V_threshold_ = V_threshold.tolist()
-    D_ = D.tolist()
-    p_ = p.tolist()
-    r_ = r.T[0].tolist()
+    C = C.tolist()
+    B = B.tolist()
+    r = r.T[0].tolist()
 
     # transition kernel
     def P(x):
-        Cx = [Sum([C_[i][j] * x[j] for j in range(n)]) for i in range(n)]
+        Cx = [Sum([C[i][j] * x[j] for j in range(n)]) for i in range(n)]
         phi_x = [If(x[i] < 0, 1, 0) for i in range(n)]
-        Bphi = [Sum([B_[i][j] * phi_x[j] for j in range(n)]) for i in range(n)]
-        return [Cx[i] + r_[i] - Bphi[i] for i in range(n)]
+        Bphi = [Sum([B[i][j] * phi_x[j] for j in range(n)]) for i in range(n)]
+        return [Cx[i] + r[i] - Bphi[i] for i in range(n)]
 
     # neural network weights and biases
-    w1 = W1.tolist() if isinstance(W1, np.ndarray) else W1
-    w2 = W2.tolist() if isinstance(W2, np.ndarray) else W2
-    b1 = B1.tolist() if isinstance(B1, np.ndarray) else B1
-    b2 = B2.tolist() if isinstance(B2, np.ndarray) else B2
+    w1 = W1.tolist()
+    w2 = W2.tolist()
+    b1 = B1.tolist()
+    b2 = B2.tolist()
 
     # relu function
     def relu(x):

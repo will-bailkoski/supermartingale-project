@@ -124,9 +124,9 @@ for iteration in range(max_iterations):
         if param.requires_grad:
             model_weights[name] = param.data.numpy()
 
-    C, D, p, B, V_threshold, X_initial, r = generate_model_params(n, m)
+    C, _, _, B, _, _, r = generate_model_params(n, m)
     is_sat, counter_example = verify_model(input_size, hidden_size,
-                                           A, C, D, p, B, V_threshold, r, epsilon,
+                                           A, C, B, r, epsilon,
                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
                                            model_weights['fc1.bias'], model_weights['fc2.bias'])
     if not is_sat:

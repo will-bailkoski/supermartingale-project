@@ -64,6 +64,7 @@ optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 weight_history = {'fc1': [], 'fc2': []}
 loss_history = []
+sat_history = []
 
 # Training and verification loop
 for iteration in range(max_iterations):
@@ -96,6 +97,9 @@ for iteration in range(max_iterations):
         weight_history['fc1'].append(model.fc1.weight.detach().mean(dim=1).numpy())
         weight_history['fc2'].append(model.fc2.weight.detach().mean(dim=1).numpy())
         loss_history.append(loss.item())
+        condition = E_V_x_prime - V_x + epsilon
+        satisfied = (condition <= 0).float()
+        sat_history.append(torch.mean(satisfied).item())
 
         # if epoch % 100 == 0:
         #     plot_weight_distribution(model, epoch)
@@ -143,8 +147,9 @@ for iteration in range(max_iterations):
             X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
         print(len(X), len(X_prime))
 
-    plot_weight_changes(weight_history)
-    plot_loss_curve(loss_history)
+    if iteration % 5 == 0:
+        plot_weight_changes(weight_history)
+        plot_loss_curve(loss_history, sat_history)
 
 if iteration == max_iterations - 1:
     print("Max iterations reached. Model could not be verified.")
@@ -168,6 +173,7 @@ with torch.no_grad():
 
 
 print(model_weights)
-
+plot_weight_changes(weight_history)
+plot_loss_curve(loss_history, sat_history)
 
 

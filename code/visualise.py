@@ -47,12 +47,34 @@ def plot_weight_changes(weight_history):
     plt.show()
 
 
-def plot_loss_curve(loss_history):
-    plt.figure(figsize=(10, 5))
+def plot_loss_curve(loss_history, sat_history):
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
     plt.plot(loss_history)
+    zero_loss_indices = []
+    for i, loss in enumerate(loss_history):
+        if loss == 0 and (i == 0 or loss_history[i - 1] != 0):
+            zero_loss_indices.append(i)
+    plt.scatter(zero_loss_indices, [loss_history[i] for i in zero_loss_indices], color='red', marker='x')
+
     plt.title('Loss Over Time')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(sat_history)
+    full_sat_indices = []
+    for i, sat in enumerate(sat_history):
+        if sat == 1 and (i == 0 or sat_history[i - 1] != 1):
+            full_sat_indices.append(i)
+    plt.scatter(full_sat_indices, [sat_history[i] for i in full_sat_indices], color='red', marker='x')
+
+    plt.title('Satisfaction Rate Over Time')
+    plt.xlabel('Epoch')
+    plt.ylabel('Sat Rate')
+
+    plt.tight_layout()
     plt.show()
 
 

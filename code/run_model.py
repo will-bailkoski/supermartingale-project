@@ -43,7 +43,7 @@ def run_simulation_X(C, r, B, X_initial, time_steps):
 
 from model_params import n, m, time_steps
 
-for i in range(100):
+for i in range(500):
     C, D, p, B, V_threshold, X_initial, r = generate_model_params(n, m)
 
     # Equilibrium check???

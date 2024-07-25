@@ -1,17 +1,20 @@
+import random
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from model_params import n, m, A
+from model_params import n, m, A, min_bound, max_bound
 from verify_function_z3 import verify_model
 from transition_kernel import transition_kernel
+
+from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, plot_decision_boundary
 
 from run_model import training_pairs, generate_model_params
 results_doc = [element for element in training_pairs if not A.contains_point(element[0])]  # set removal
 
-
-# Define the neural network (unchanged)
+# Define the neural network
 class SimpleNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super(SimpleNN, self).__init__()
@@ -24,19 +27,28 @@ class SimpleNN(nn.Module):
         return x
 
 
-# Custom loss function (unchanged)
-def custom_loss(V_x, E_V_x_prime, epsilon):
-    return torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
+def sample_within_area(state):
+    og_state = state
+    flag = True
+    while flag:
+        state = og_state
+        for xi in state:
+            new = xi[0] + random.uniform(-2, 2)
+            if new <= max_bound and new >= min_bound:
+                xi[0] = new
+        flag = A.contains_point(state)
+    return state
 
 
 # Example usage
 input_size = n
-hidden_size = 10
+hidden_size = 7
 output_size = 1
-epsilon = 0.000001
+epsilon = 0.001
 learning_rate = 0.001
 num_epochs = 100
-max_iterations = 50
+max_iterations = 100
+
 
 # Instantiate the neural network
 model = SimpleNN(input_size, hidden_size, output_size)
@@ -47,30 +59,51 @@ X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float3
 
 
 # Define optimizer
-optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
+
+weight_history = {'fc1': [], 'fc2': []}
+loss_history = []
 
 # Training and verification loop
 for iteration in range(max_iterations):
     print(f"Training iteration {iteration + 1}")
     print(len(X), len(X_prime))
 
+    model.train()
+
     # Training loop
     for epoch in range(num_epochs):
-        model.train()
         V_x = model(X)
         V_x_prime = torch.stack([model(i) for i in X_prime])
         E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
-        # Compute loss
-        loss = custom_loss(V_x, E_V_x_prime, epsilon)
 
-        # Backward pass and optimize
-        optimizer.zero_grad()
+        loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
         optimizer.step()
 
         if epoch % 50 == 0:
-            print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item():.6f}')
+            print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item()}')
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    print(
+                        f'{name} - Max Gradient: {param.grad.abs().max().item():.4f}, Mean Gradient: {param.grad.abs().mean().item():.4f}')
+
+        weight_history['fc1'].append(model.fc1.weight.detach().mean(dim=1).numpy())
+        weight_history['fc2'].append(model.fc2.weight.detach().mean(dim=1).numpy())
+        loss_history.append(loss.item())
+
+        # if epoch % 100 == 0:
+        #     plot_weight_distribution(model, epoch)
+        #     plot_output_distribution(model, X, epoch)
+        #     if X.shape[1] == 2:  # Only for 2D input
+        #         plot_decision_boundary(model, X, epoch)
+
+    # scheduler.step(loss)
 
     # Evaluation
     model.eval()
@@ -78,8 +111,12 @@ for iteration in range(max_iterations):
         V_x = model(X)
         V_x_prime = torch.stack([model(i) for i in X_prime])
         E_V_x_prime = torch.mean(V_x_prime, dim=1)
-        final_loss = custom_loss(V_x, E_V_x_prime, epsilon)
-        print(f'Final Loss: {final_loss.item():.6f}')
+        final_loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
+        condition = E_V_x_prime - V_x + epsilon
+        satisfied = (condition <= 0).float()
+        satisfaction_rate = torch.mean(satisfied).item()
+        print(f'Final Loss: {final_loss.item()}')
+        print(f"Condition satisfaction rate: {satisfaction_rate:.2%}")
 
     # Verification step
     model_weights = {}
@@ -97,12 +134,40 @@ for iteration in range(max_iterations):
         break
     else:
         print(f"Verification failed. Retraining with counter-example: {counter_example}")
+
+        counter_examples = np.array([sample_within_area(np.array([counter_example]).T) for _ in range(30)])
         # Add counter-example to training data
-        X = torch.cat([X, torch.tensor([counter_example], dtype=torch.float32)])
-        X_prime_new = torch.stack([torch.tensor(transition_kernel(np.array([counter_example]).T, C, B, r), dtype=torch.float32)])
-        X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
+        X = torch.cat([X, torch.tensor(counter_examples, dtype=torch.float32).squeeze(-1)])
+        for example in counter_examples:
+            X_prime_new = torch.stack([torch.tensor(transition_kernel(example, C, B, r), dtype=torch.float32)])
+            X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
+        print(len(X), len(X_prime))
+
+    plot_weight_changes(weight_history)
+    plot_loss_curve(loss_history)
 
 if iteration == max_iterations - 1:
     print("Max iterations reached. Model could not be verified.")
 
-# The final model is now stored in the 'model' variable
+print("\n\n")
+with torch.no_grad():
+    V_x = model(X)
+    V_x_prime = torch.stack([model(i) for i in X_prime])
+    E_V_x_prime = torch.mean(V_x_prime, dim=1)
+    final_loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
+    condition = E_V_x_prime - V_x + epsilon
+    satisfied = (condition <= 0).float()
+    satisfaction_rate = torch.mean(satisfied).item()
+    print(f'Final Loss: {final_loss.item()}')
+    print(f"Condition satisfaction rate: {satisfaction_rate:.2%}")
+
+    model_weights = {}
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            model_weights[name] = param.data.numpy()
+
+
+print(model_weights)
+
+
+

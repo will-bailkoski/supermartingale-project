@@ -19,7 +19,7 @@ def phi(v_vbar):
 def state_noise(state):
     noise_dict = {}
     for k in range(len(state)):
-        noise_dict["agent_" + str(k)] = (state[k] * 0.9, state[k] * 1.1)
+        noise_dict[str(k)] = (state[k] * 0.9, state[k] * 1.1)
 
     return list(product(*noise_dict.values()))
 

@@ -1,21 +1,12 @@
 from z3 import *
 import numpy as np
+from model_params import min_bound, max_bound
 
 
 def z3_value_to_double(val):
     if is_real(val):
         # For RatNumRef (rational numbers)
         return val.numerator().as_long() / val.denominator().as_long()
-    # elif is_int(val):
-    #     # For IntNumRef (integers)
-    #     return float(val.as_long())
-    # elif is_true(val):
-    #     return 1.0
-    # elif is_false(val):
-    #     return 0.0
-    # elif is_algebraic_value(val):
-    #     # For algebraic numbers
-    #     return val.approx(20)  # 20 digits of precision, adjust if needed
     else:
         # For other types, attempt to get a string representation and convert
         try:
@@ -29,6 +20,11 @@ def verify_model(n, h, equil_set, C, B, V_threshold, D, p, r, epsilon, W1, W2, B
 
     # state
     x = [Real(f"X_{i}") for i in range(n)]
+
+    # Add constraints to the solver to bound each value in x
+    for xi in x:
+        solver.add(xi >= min_bound)
+        solver.add(xi <= max_bound)
 
     # set A
     center = equil_set.center

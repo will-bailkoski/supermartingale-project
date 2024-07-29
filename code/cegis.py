@@ -1,5 +1,7 @@
-import random
+"""This is the main file that executes the Counter-Example Guided Inductive Synthesis (CEGIS) for the supermartingale
+training"""
 
+import random
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,12 +9,15 @@ import torch.optim as optim
 import torch.nn.functional as F
 from model_params import n, m, A, min_bound, max_bound
 from verify_function_z3 import verify_model
+from verify_function_milp import verify_model_gurobi
 from transition_kernel import transition_kernel
 
 from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, plot_decision_boundary
 
 from run_model import training_pairs, generate_model_params
 results_doc = [element for element in training_pairs if not A.contains_point(element[0])]  # set removal
+
+torch.set_printoptions(precision=20)
 
 # Define the neural network
 class SimpleNN(nn.Module):
@@ -47,7 +52,7 @@ output_size = 1
 epsilon = 0.001
 learning_rate = 0.001
 num_epochs = 100
-max_iterations = 100
+max_iterations = 200
 
 
 # Instantiate the neural network
@@ -133,6 +138,10 @@ for iteration in range(max_iterations):
                                            A, C, B, r, epsilon,
                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
                                            model_weights['fc1.bias'], model_weights['fc2.bias'])
+    # is_sat, counter_example = verify_model_gurobi(input_size, hidden_size,
+    #                                        A, C, B, r, epsilon,
+    #                                        model_weights['fc1.weight'], model_weights['fc2.weight'],
+    #                                        model_weights['fc1.bias'], model_weights['fc2.bias'])
     if not is_sat:
         print("Verification successful. Model is correct.")
         break
@@ -166,13 +175,12 @@ with torch.no_grad():
     print(f'Final Loss: {final_loss.item()}')
     print(f"Condition satisfaction rate: {satisfaction_rate:.2%}")
 
-    model_weights = {}
     for name, param in model.named_parameters():
-        if param.requires_grad:
-            model_weights[name] = param.data.numpy()
+        print(f"{name}:")
+        print(param)
 
+    torch.save(model.state_dict(), 'model_weights.pth')
 
-print(model_weights)
 plot_weight_changes(weight_history)
 plot_loss_curve(loss_history, sat_history)
 

@@ -1,7 +1,10 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from model_params import n, C, B, V_threshold, D, p
+from model_params import n#, #C, B, V_threshold, D, p
+from run_model import generate_model_params
+
+C, D, p, B, V_threshold, X_initial, r = generate_model_params(2,2)
 
 model = gp.Model("MILP_Encoding_Verification")
 
@@ -23,6 +26,8 @@ p = p.tolist() if isinstance(p, np.ndarray) else p
 
 r = [sum(C[i][j] * V_threshold[j][0] for j in range(n)) - V_threshold[i][0] +
      sum(D[i][j] * p[j][0] for j in range(len(p))) for i in range(n)]
+
+print(r)
 
 # Transition kernel (P(x))
 Cx = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)

@@ -1,7 +1,6 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from equilibrium_set import EquilibriumSet
 
 from transition_kernel import transition_kernel
 
@@ -46,10 +45,14 @@ from model_params import n, m, time_steps
 for i in range(500):
     C, D, p, B, V_threshold, X_initial, r = generate_model_params(n, m)
 
-    # Equilibrium check???
+    # Equilibrium check
     # a = np.linalg.inv(np.eye(len(C)) - C)
+    # beta = np.array([0.4] * n)
     # b = r - beta
-    # if np.dot(a, b)[0][0] >= 0 and np.dot(a, b)[1][0] >= 0:  # equilibrium check
+    # if np.dot(a, b)[0][0] <= 0 and np.dot(a, b)[1][0] <= 0:
+    #     print("equilibrium exists")
+    #     if np.dot(a, r)[0][0] <= 0 and np.dot(a, r)[1][0] <= 0:
+    #         print("equilibrium is unique")
 
     X = run_simulation_X(C, r, B, X_initial, time_steps + 1)
 

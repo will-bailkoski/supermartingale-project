@@ -1,10 +1,11 @@
-# Should be used for the generation of training pairs
+"""This defines the transition kernel P for the dynamic system and creates training pairs
+(NOTE: this does not check for equilibrium set constraints)"""
 
 import numpy as np
 from itertools import product
 
 
-# Define the failure function phi
+# Failure function
 def phi(v_vbar):
     indicator = []
     for i in range(0, len(v_vbar)):

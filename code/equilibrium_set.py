@@ -13,7 +13,8 @@ class EquilibriumSet:
         point = np.array(point)
 
         if point.shape != self.center.shape:
-            raise ValueError(f"Point must have the same dimensions as the center. Point: {point.shape} Center: {self.center.shape}")
+            raise ValueError(
+                f"Point must have the same dimensions as the center. Point: {point.shape} Center: {self.center.shape}")
 
         distance = np.linalg.norm(point - self.center)
         return distance <= self.radius

@@ -1,3 +1,4 @@
+"""A function for validating a CEGIS supermartingale via Z3's SAT solver"""
 from z3 import *
 from model_params import min_bound, max_bound
 
@@ -64,12 +65,15 @@ def verify_model(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
     x_tplus1 = P(x)
     x_tplus1_up = [i * RealVal('1.1') for i in x_tplus1]
     x_tplus1_down = [i * RealVal('0.9') for i in x_tplus1]
-    E_V_X_tplus1 = 0.5 * V(x_tplus1_up) + 0.5 * V(x_tplus1_down)
+    E_V_X_tplus1 = 0.25 * V(x_tplus1_up) + 0.25 * V(x_tplus1_down) + 0.25 * V([x_tplus1_up[0], x_tplus1_down[1]]) + 0.25 * V([x_tplus1_down[0], x_tplus1_up[1]])
 
     solver.add(E_V_X_tplus1 > V_x - epsilon)
 
     # Check satisfiability
     result = solver.check()
+
+
+
     if result == sat:
         model = solver.model()
         counterexample_dict = {str(d): model[d] for d in model.decls() if d.name().startswith('X_')}

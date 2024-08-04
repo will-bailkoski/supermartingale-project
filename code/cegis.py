@@ -10,7 +10,8 @@ import torch.nn.functional as F
 from model_params import n, m, A, min_bound, max_bound
 from verify_function_z3 import verify_model
 from verify_function_milp import verify_model_gurobi
-from transition_kernel import transition_kernel
+from function_application import transition_kernel
+from find_lipschitz import calculate_lipschitz_constant
 
 from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, plot_decision_boundary
 
@@ -175,9 +176,11 @@ with torch.no_grad():
     print(f'Final Loss: {final_loss.item()}')
     print(f"Condition satisfaction rate: {satisfaction_rate:.2%}")
 
-    for name, param in model.named_parameters():
-        print(f"{name}:")
-        print(param)
+    print(model_weights)
+
+    print("Lipschitz constant:", calculate_lipschitz_constant(model_weights['fc1.weight'],
+                                           model_weights['fc1.bias'], model_weights['fc2.weight'],
+                                           model_weights['fc2.bias']))
 
     torch.save(model.state_dict(), 'model_weights.pth')
 

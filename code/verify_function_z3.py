@@ -76,6 +76,7 @@ def verify_model(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
 
     if result == sat:
         model = solver.model()
+        # print(z3_value_to_double(model.eval(E_V_X_tplus1)))
         counterexample_dict = {str(d): model[d] for d in model.decls() if d.name().startswith('X_')}
         counterexample = [z3_value_to_double(counterexample_dict[key]) for key in sorted(counterexample_dict.keys())]
         return True, counterexample

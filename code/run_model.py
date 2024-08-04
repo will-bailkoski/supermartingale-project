@@ -2,7 +2,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from transition_kernel import transition_kernel
+from function_application import transition_kernel
 
 training_pairs = []
 

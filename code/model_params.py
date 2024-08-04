@@ -7,7 +7,6 @@ m = 2     # number of assets
 time_steps = 10
 
 center = -4
-# A = EquilibriumSet([[center]] * n, 0.75)
 A = EquilibriumSet([[center]] * n, 2)
 
 max_bound = 30.0

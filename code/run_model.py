@@ -8,8 +8,8 @@ training_pairs = []
 
 
 def generate_model_params(n, m):
-    C = np.random.uniform(0, 0.01, (n, n))
-    np.fill_diagonal(C, 0)
+    # C = np.random.uniform(0, 0.01, (n, n))
+    # np.fill_diagonal(C, 0)
 
     C = np.array([[0., 0.0052315],
                   [0.00117426, 0.]])

@@ -1,6 +1,9 @@
+"""A function for validating a CEGIS supermartingale via Gurobi's MILP solver"""
 import gurobipy as gp
 from gurobipy import GRB
 from model_params import min_bound, max_bound
+
+# TODO: fix quadratic constraint in equil_set check so that it becomes a true MILP solve
 
 
 def verify_model_gurobi(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
@@ -62,45 +65,54 @@ def verify_model_gurobi(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
     V_x = model.addVar(lb=0, ub=GRB.INFINITY, name="V_x")
 
     for j in range(h):
-        model.addConstr(hidden_layer1_x[j] == gp.quicksum(W1[j][i] * x[i] + B1[j] for i in range(n)))
-        model.addGenConstrMax(relu_layer_x[j], [hidden_layer1_x[j], 0])
+        model.addConstr(hidden_layer1_x[j] == gp.quicksum(W1[j][i] * x[i] for i in range(n)) + B1[j])
+        model.addConstr(relu_layer_x[j] == gp.max_(hidden_layer1_x[j], constant=0))
 
-    model.addConstr(hidden_layer2_x == gp.quicksum(W2[0][i] * relu_layer_x[i] + B2[0] for i in range(h)))
-    model.addGenConstrMax(V_x, [hidden_layer2_x, 0])
+    model.addConstr(hidden_layer2_x == gp.quicksum(W2[0][i] * relu_layer_x[i] for i in range(h))+ B2[0])
+    model.addConstr(V_x == gp.max_(hidden_layer2_x, constant=0))
 
 
     # expected neural output of V(P(x))
 
     hidden_layer_Px_up_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    hidden_layer_Px_up_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
     relu_layer_Px_up_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
     V_Px_up_up = model.addVar(lb=0, ub=GRB.INFINITY)
 
     hidden_layer_Px_down_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    hidden_layer_Px_down_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
     relu_layer_Px_down_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
     V_Px_down_down = model.addVar(lb=0, ub=GRB.INFINITY)
 
     hidden_layer_Px_up_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    hidden_layer_Px_up_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
     relu_layer_Px_up_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
     V_Px_up_down = model.addVar(lb=0, ub=GRB.INFINITY)
 
     hidden_layer_Px_down_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    hidden_layer_Px_down_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
     relu_layer_Px_down_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
     V_Px_down_up = model.addVar(lb=0, ub=GRB.INFINITY)
 
     for j in range(h):
-        model.addConstr(hidden_layer_Px_up_up[j] == gp.quicksum(W1[j][i] * x_tplus1_up_up[i] + B1[j] for i in range(n)))
-        model.addGenConstrMax(relu_layer_Px_up_up[j], [hidden_layer_Px_up_up[j], 0])
-        model.addConstr(hidden_layer_Px_down_up[j] == gp.quicksum(W1[j][i] * x_tplus1_down_up[i] + B1[j] for i in range(n)))
-        model.addGenConstrMax(relu_layer_Px_down_up[j], [hidden_layer_Px_down_up[j], 0])
-        model.addConstr(hidden_layer_Px_up_down[j] == gp.quicksum(W1[j][i] * x_tplus1_up_down[i] + B1[j] for i in range(n)))
-        model.addGenConstrMax(relu_layer_Px_up_down[j], [hidden_layer_Px_up_down[j], 0])
-        model.addConstr(hidden_layer_Px_down_down[j] == gp.quicksum(W1[j][i] * x_tplus1_down_down[i] + B1[j] for i in range(n)))
-        model.addGenConstrMax(relu_layer_Px_down_down[j], [hidden_layer_Px_down_down[j], 0])
+        model.addConstr(hidden_layer_Px_up_up[j] == gp.quicksum(W1[j][i] * x_tplus1_up_up[i] for i in range(n)) + B1[j])
+        model.addConstr(relu_layer_Px_up_up[j] == gp.max_(hidden_layer_Px_up_up[j], constant=0))
+        model.addConstr(hidden_layer_Px_down_up[j] == gp.quicksum(W1[j][i] * x_tplus1_down_up[i] for i in range(n)) + B1[j])
+        model.addConstr(relu_layer_Px_down_up[j] == gp.max_(hidden_layer_Px_down_up[j], constant=0))
+        model.addConstr(hidden_layer_Px_up_down[j] == gp.quicksum(W1[j][i] * x_tplus1_up_down[i] for i in range(n)) + B1[j])
+        model.addConstr(relu_layer_Px_up_down[j] == gp.max_(hidden_layer_Px_up_down[j], constant=0))
+        model.addConstr(hidden_layer_Px_down_down[j] == gp.quicksum(W1[j][i] * x_tplus1_down_down[i] for i in range(n)) + B1[j])
+        model.addConstr(relu_layer_Px_down_down[j] == gp.max_(hidden_layer_Px_down_down[j], constant=0))
 
-    model.addConstr(V_Px_up_up == gp.quicksum(W2[0][i] * relu_layer_Px_up_up[i] + B2[0] for i in range(h)))
-    model.addConstr(V_Px_down_up == gp.quicksum(W2[0][i] * relu_layer_Px_down_up[i] + B2[0] for i in range(h)))
-    model.addConstr(V_Px_up_down == gp.quicksum(W2[0][i] * relu_layer_Px_up_down[i] + B2[0] for i in range(h)))
-    model.addConstr(V_Px_down_down == gp.quicksum(W2[0][i] * relu_layer_Px_down_down[i] + B2[0] for i in range(h)))
+    model.addConstr(hidden_layer_Px_up_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_up[i] for i in range(h)) + B2[0])
+    model.addConstr(hidden_layer_Px_down_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_up[i] for i in range(h)) + B2[0])
+    model.addConstr(hidden_layer_Px_up_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_down[i] for i in range(h)) + B2[0])
+    model.addConstr(hidden_layer_Px_down_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_down[i] for i in range(h)) + B2[0])
+
+    model.addConstr(V_Px_down_up == gp.max_(hidden_layer_Px_down_up2, constant=0))
+    model.addConstr(V_Px_up_down == gp.max_(hidden_layer_Px_up_down2, constant=0))
+    model.addConstr(V_Px_up_up == gp.max_(hidden_layer_Px_up_up2, constant=0))
+    model.addConstr(V_Px_down_down == gp.max_(hidden_layer_Px_down_down2, constant=0))
 
     # supermartingale property
 
@@ -131,4 +143,5 @@ def verify_model_gurobi(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
         print("milp ^^^")
         return True, counterexample
     else:
+
         return False, None

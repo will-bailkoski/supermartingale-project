@@ -1,4 +1,11 @@
 import numpy as np
+from function_application import v_x, transition_kernel
+from run_model import generate_model_params
+from MAB_algorithm import mab_algorithm
+from find_lipschitz import calculate_lipschitz_constant
+from verify_function_z3 import verify_model
+from model_params import A
+from functools import partial
 
 scenarios = {
     "Stable System": {
@@ -61,6 +68,7 @@ scenarios = {
     }
 
 }
+
 
 
 # milp is wrong, z3 is right (available counterexample)
@@ -126,3 +134,24 @@ B2 = np.array([0.11887560784816741943])
 #          0.78795963525772094727])
 #
 # B2 = np.array([-0.22296056151390075684])
+
+
+
+
+C, _, _, B, _, _, r = generate_model_params(2, 2)
+
+#print(verify_model(2, 7, A, C, B, r, 0.001, W1, W2, B1, B2))
+
+P = partial(transition_kernel, C=C, B=B, r=r)
+V = partial(v_x, W1=W1, W2=W2, B1=B1, B2=B2)
+
+result = mab_algorithm(
+    initial_bounds=[(-10.0, 30.0)] * 2,
+    dynamics=P,
+    certificate=V,
+    lipschitz=calculate_lipschitz_constant(W1, W2, B1, B2),
+    beta=0.1,
+    max_iterations=20000
+)
+
+print(f"Certificate is {'valid' if result else 'invalid'}")

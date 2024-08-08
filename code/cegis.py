@@ -10,12 +10,15 @@ import torch.nn.functional as F
 from model_params import n, m, A, min_bound, max_bound
 from verify_function_z3 import verify_model
 from verify_function_milp import verify_model_gurobi
-from function_application import transition_kernel
+from function_application import transition_kernel, e_v_p_x, v_x
 from find_lipschitz import calculate_lipschitz_constant
 
 from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, plot_decision_boundary
 
 from run_model import training_pairs, generate_model_params
+
+C, _, _, B, _, _, r = generate_model_params(n, m)
+
 results_doc = [element for element in training_pairs if not A.contains_point(element[0])]  # set removal
 
 torch.set_printoptions(precision=20)
@@ -58,10 +61,11 @@ max_iterations = 200
 
 # Instantiate the neural network
 model = SimpleNN(input_size, hidden_size, output_size)
+model.double()
 
 # Initialize training data
-X = torch.tensor(np.array([i[0] for i in results_doc]), dtype=torch.float32).squeeze(-1)
-X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float32).squeeze(-1)
+X = torch.tensor(np.array([i[0] for i in results_doc]), dtype=torch.float64).squeeze(-1)
+X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float64).squeeze(-1)
 
 
 # Define optimizer
@@ -85,6 +89,23 @@ for iteration in range(max_iterations):
         V_x_prime = torch.stack([model(i) for i in X_prime])
         E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
+        # if epoch%5 == 0:
+        #     W1 = model.fc1.weight.detach()
+        #     W2 = model.fc2.weight.detach()
+        #     B1 = model.fc1.bias.detach()
+        #     B2 = model.fc2.bias.detach()
+        #     ran = random.randint(0, 400)
+        #     a = V_x[ran].detach()
+        #     b = v_x(np.array([X[ran].detach()]).T, W1, W2, np.array([B1]).T, np.array([B2]))
+        #     a1 = E_V_x_prime[ran].detach()
+        #     d = e_v_p_x(np.array([X[ran].detach()]).T, C, B, r, W1, W2, np.array([B1]).T, np.array([B2]))
+        #     if a != b:
+        #         print("Vx")
+        #         print(a - b)
+        #     if a1 != d:
+        #         print("EVPx")
+        #         print(a1 - d)
+
 
         loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
         loss.backward()
@@ -93,12 +114,12 @@ for iteration in range(max_iterations):
 
         optimizer.step()
 
-        if epoch % 50 == 0:
-            print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item()}')
-            for name, param in model.named_parameters():
-                if param.grad is not None:
-                    print(
-                        f'{name} - Max Gradient: {param.grad.abs().max().item():.4f}, Mean Gradient: {param.grad.abs().mean().item():.4f}')
+        # if epoch % 50 == 0:
+        #     print(f'Epoch [{epoch}/{num_epochs}], Loss: {loss.item()}')
+        #     for name, param in model.named_parameters():
+        #         if param.grad is not None:
+        #             print(
+        #                 f'{name} - Max Gradient: {param.grad.abs().max().item():.4f}, Mean Gradient: {param.grad.abs().mean().item():.4f}')
 
         weight_history['fc1'].append(model.fc1.weight.detach().mean(dim=1).numpy())
         weight_history['fc2'].append(model.fc2.weight.detach().mean(dim=1).numpy())
@@ -134,7 +155,7 @@ for iteration in range(max_iterations):
         if param.requires_grad:
             model_weights[name] = param.data.numpy()
 
-    C, _, _, B, _, _, r = generate_model_params(n, m)
+
     is_sat, counter_example = verify_model(input_size, hidden_size,
                                            A, C, B, r, epsilon,
                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
@@ -177,6 +198,20 @@ with torch.no_grad():
     print(f"Condition satisfaction rate: {satisfaction_rate:.2%}")
 
     print(model_weights)
+
+    gurobi, _ = verify_model_gurobi(input_size, hidden_size,
+                                                  A, C, B, r, epsilon,
+                                                  model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                                  model_weights['fc1.bias'], model_weights['fc2.bias'])
+    z3, _ = verify_model(input_size, hidden_size,
+                                            A, C, B, r, epsilon,
+                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                            model_weights['fc1.bias'], model_weights['fc2.bias'])
+
+    if gurobi == z3:
+        print("Models are the same!!")
+    else:
+        print("Models arent the same")
 
     print("Lipschitz constant:", calculate_lipschitz_constant(model_weights['fc1.weight'],
                                            model_weights['fc1.bias'], model_weights['fc2.weight'],

@@ -3,7 +3,7 @@ from gurobipy import GRB
 import numpy as np
 
 
-def calculate_lipschitz_constant(W1, b1, W2, b2):
+def calculate_lipschitz_constant(W1, W2, b1, b2):
 
     model = gp.Model('LipschitzConstant')
 

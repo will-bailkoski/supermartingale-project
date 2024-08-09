@@ -13,7 +13,8 @@ from verify_function_milp import verify_model_gurobi
 from function_application import transition_kernel, e_v_p_x, v_x
 from find_lipschitz import calculate_lipschitz_constant
 
-from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, plot_decision_boundary
+from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, \
+    plot_decision_boundary
 
 from run_model import training_pairs, generate_model_params
 
@@ -22,6 +23,7 @@ C, _, _, B, _, _, r = generate_model_params(n, m)
 results_doc = [element for element in training_pairs if not A.contains_point(element[0])]  # set removal
 
 torch.set_printoptions(precision=20)
+
 
 # Define the neural network
 class SimpleNN(nn.Module):
@@ -58,7 +60,6 @@ learning_rate = 0.001
 num_epochs = 100
 max_iterations = 200
 
-
 # Instantiate the neural network
 model = SimpleNN(input_size, hidden_size, output_size)
 model.double()
@@ -67,10 +68,9 @@ model.double()
 X = torch.tensor(np.array([i[0] for i in results_doc]), dtype=torch.float64).squeeze(-1)
 X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float64).squeeze(-1)
 
-
 # Define optimizer
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
+# scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
 
 weight_history = {'fc1': [], 'fc2': []}
 loss_history = []
@@ -79,7 +79,6 @@ sat_history = []
 # Training and verification loop
 for iteration in range(max_iterations):
     print(f"Training iteration {iteration + 1}")
-    print(len(X), len(X_prime))
 
     model.train()
 
@@ -105,7 +104,6 @@ for iteration in range(max_iterations):
         #     if a1 != d:
         #         print("EVPx")
         #         print(a1 - d)
-
 
         loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
         loss.backward()
@@ -155,7 +153,6 @@ for iteration in range(max_iterations):
         if param.requires_grad:
             model_weights[name] = param.data.numpy()
 
-
     is_sat, counter_example = verify_model(input_size, hidden_size,
                                            A, C, B, r, epsilon,
                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
@@ -176,7 +173,6 @@ for iteration in range(max_iterations):
         for example in counter_examples:
             X_prime_new = torch.stack([torch.tensor(transition_kernel(example, C, B, r), dtype=torch.float32)])
             X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
-        print(len(X), len(X_prime))
 
     if iteration % 5 == 0:
         plot_weight_changes(weight_history)
@@ -200,26 +196,26 @@ with torch.no_grad():
     print(model_weights)
 
     gurobi, _ = verify_model_gurobi(input_size, hidden_size,
-                                                  A, C, B, r, epsilon,
-                                                  model_weights['fc1.weight'], model_weights['fc2.weight'],
-                                                  model_weights['fc1.bias'], model_weights['fc2.bias'])
+                                    A, C, B, r, epsilon,
+                                    model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                    model_weights['fc1.bias'], model_weights['fc2.bias'])
     z3, _ = verify_model(input_size, hidden_size,
-                                            A, C, B, r, epsilon,
-                                            model_weights['fc1.weight'], model_weights['fc2.weight'],
-                                            model_weights['fc1.bias'], model_weights['fc2.bias'])
+                         A, C, B, r, epsilon,
+                         model_weights['fc1.weight'], model_weights['fc2.weight'],
+                         model_weights['fc1.bias'], model_weights['fc2.bias'])
 
     if gurobi == z3:
         print("Models are the same!!")
     else:
         print("Models arent the same")
 
-    print("Lipschitz constant:", calculate_lipschitz_constant(model_weights['fc1.weight'],
-                                           model_weights['fc1.bias'], model_weights['fc2.weight'],
-                                           model_weights['fc2.bias']))
+    L = calculate_lipschitz_constant(C, B, r, model_weights['fc1.weight'],
+                                     model_weights['fc1.bias'], model_weights['fc2.weight'],
+                                     model_weights['fc2.bias'], (min_bound, max_bound))
+
+    print("Lipschitz constant:", L)
 
     torch.save(model.state_dict(), 'model_weights.pth')
 
 plot_weight_changes(weight_history)
 plot_loss_curve(loss_history, sat_history)
-
-

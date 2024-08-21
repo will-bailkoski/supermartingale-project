@@ -45,6 +45,8 @@ from model_params import n, m, time_steps
 for i in range(500):
     C, D, p, B, V_threshold, X_initial, r = generate_model_params(n, m)
 
+    X_initial = np.array([np.random.uniform(0, 30, n)]).T
+
     # Equilibrium check
     # a = np.linalg.inv(np.eye(len(C)) - C)
     # beta = np.array([0.4] * n)
@@ -59,13 +61,13 @@ for i in range(500):
     results = np.array(X).T[0].T
 
 # Plot the results
-plt.figure(figsize=(10, 10))
-plt.plot(results)
-plt.axhline(y=0, color='r', linestyle='--', label='Failure Threshold')
-plt.xlabel('Time')
-plt.ylabel('Equity Values')
-plt.legend([str(i + 1) for i in range(0, n)] + ['Failure Threshold'])
-
-plt.grid(linestyle='-', linewidth='0.5', color='grey')
-
-plt.show()
+# plt.figure(figsize=(10, 10))
+# plt.plot(results)
+# plt.axhline(y=0, color='r', linestyle='--', label='Failure Threshold')
+# plt.xlabel('Time')
+# plt.ylabel('Equity Values')
+# plt.legend([str(i + 1) for i in range(0, n)] + ['Failure Threshold'])
+#
+# plt.grid(linestyle='-', linewidth='0.5', color='grey')
+#
+# plt.show()

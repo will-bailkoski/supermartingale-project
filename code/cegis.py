@@ -7,11 +7,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
 from model_params import n, m, A, min_bound, max_bound
 from verify_function_z3 import verify_model
 from verify_function_milp import verify_model_gurobi
 from function_application import transition_kernel, e_v_p_x, v_x
+
 from find_lipschitz import calculate_lipschitz_constant
+from find_upper import find_reward_upper_bound
+from find_lower import find_reward_lower_bound
+from functools import partial
+from MAB_algorithm import mab_algorithm
 
 from visualise import plot_weight_distribution, plot_output_distribution, plot_weight_changes, plot_loss_curve, \
     plot_decision_boundary
@@ -153,14 +159,14 @@ for iteration in range(max_iterations):
         if param.requires_grad:
             model_weights[name] = param.data.numpy()
 
-    is_sat, counter_example = verify_model(input_size, hidden_size,
-                                           A, C, B, r, epsilon,
-                                           model_weights['fc1.weight'], model_weights['fc2.weight'],
-                                           model_weights['fc1.bias'], model_weights['fc2.bias'])
-    # is_sat, counter_example = verify_model_gurobi(input_size, hidden_size,
+    # is_sat, counter_example = verify_model(input_size, hidden_size,
     #                                        A, C, B, r, epsilon,
     #                                        model_weights['fc1.weight'], model_weights['fc2.weight'],
     #                                        model_weights['fc1.bias'], model_weights['fc2.bias'])
+    is_sat, counter_example = verify_model_gurobi(input_size, hidden_size,
+                                                  A, C, B, r, epsilon,
+                                                  model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                                  model_weights['fc1.bias'], model_weights['fc2.bias'])
     if not is_sat:
         print("Verification successful. Model is correct.")
         break
@@ -210,10 +216,32 @@ with torch.no_grad():
         print("Models arent the same")
 
     L = calculate_lipschitz_constant(C, B, r, model_weights['fc1.weight'],
-                                     model_weights['fc1.bias'], model_weights['fc2.weight'],
+                                     model_weights['fc2.weight'], model_weights['fc1.bias'],
                                      model_weights['fc2.bias'], (min_bound, max_bound))
 
     print("Lipschitz constant:", L)
+
+    P = partial(transition_kernel, C=C, B=B, r=r)
+    V = partial(v_x,
+                W1=model_weights['fc1.weight'],
+                W2=model_weights['fc2.weight'],
+                B1=np.array([model_weights['fc1.bias']]).T,
+                B2=np.array([model_weights['fc2.bias']]))
+
+    result = mab_algorithm(
+        initial_bounds=[(-10.0, 30.0)] * 2,
+        dynamics=P,
+        certificate=V,
+        lipschitz=L,
+        beta=find_reward_upper_bound(2, 7, A, C, B, r,
+                                     model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                     model_weights['fc1.bias'], model_weights['fc2.bias'])
+             - find_reward_lower_bound(2, 7, A, C, B, r,
+                                       model_weights['fc1.weight'], model_weights['fc2.weight'],
+                                       model_weights['fc1.bias'], model_weights['fc2.bias']),
+
+        max_iterations=5000
+    )
 
     torch.save(model.state_dict(), 'model_weights.pth')
 

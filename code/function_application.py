@@ -4,15 +4,16 @@ and the others can be used to test neural network outputs. Every function takes 
 
 import numpy as np
 from itertools import product
+from model_params import n, m
 
 
 def e_v_p_x(x, C, B, r, W1, W2, B1, B2):
 
     assert x.shape == (2, 1), f"Input x must have shape (2, 1), but has shape {x.shape}"
-    assert W1.shape == (7, 2), f"Input x must have shape (7, 2), but has shape {W1.shape}"
-    assert B1.shape == (7, 1), f"Input x must have shape (7, 1), but has shape {B1.shape}"
-    assert W2.shape == (1, 7), f"Input x must have shape (1, 7), but has shape {W2.shape}"
-    assert B2.shape == (1, 1), f"Input x must have shape (1, 1), but has shape {B2.shape}"
+    assert W1.shape == (7, 2), f"Input W1 must have shape (7, 2), but has shape {W1.shape}"
+    assert B1.shape == (7, 1), f"Input B1 must have shape (7, 1), but has shape {B1.shape}"
+    assert W2.shape == (1, 7), f"Input W2 must have shape (1, 7), but has shape {W2.shape}"
+    assert B2.shape == (1, 1), f"Input B2 must have shape (1, 1), but has shape {B2.shape}"
 
     p_x = transition_kernel(x, C, B, r)
     v_p_xs = [v_x(i, W1, W2, B1, B2) for i in p_x]
@@ -58,8 +59,14 @@ def state_noise(state):
 
 def transition_kernel(previous_state, C, B, r):
     # returns old state and list of possible states
-    assert previous_state.shape == (2, 1), \
+    assert previous_state.shape == (n, 1), \
+        f"Input x must have shape ({n}, 1), but has shape {previous_state.shape}"
+    assert C.shape == (n, n), \
+        f"Input x must have shape ({n}, {n}), but has shape {previous_state.shape}"
+    assert B.shape == (n, n), \
         f"Input x must have shape (2, 1), but has shape {previous_state.shape}"
+    assert r.shape == (n, 1), \
+        f"Input x must have shape ({n}, 1), but has shape {r.shape}"
     Cx = np.dot(C, previous_state)
     Bphi = np.dot(B, phi(previous_state))
 

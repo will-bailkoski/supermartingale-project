@@ -1,13 +1,15 @@
+"""This function seeks to find the Lipschitz constant for the estimated reward, E[R(x)] = E[V(X')] - V(x) where X' ~ xP"""
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
+from function_application import e_v_p_x
 
 def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
 
     model = gp.Model("Lipschitz Constant Calculation")
 
     n = W1.shape[1]
-    h = W2.shape[0]
+    h = W2.shape[1]
     print(n, h)
 
 
@@ -15,41 +17,39 @@ def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
     x = model.addVars(n, lb=domain_bounds[0], ub=domain_bounds[1], name="X")
     y = model.addVars(n, lb=domain_bounds[0], ub=domain_bounds[1], name="Y")
 
-    model.addQConstr(gp.quicksum((x[i] - y[i]) * (x[i] - y[i]) for i in range(n)) == 1)
-
     # Transition kernel P(x)
     C = C.tolist()
     B = B.tolist()
     r = r.T.tolist()[0]
 
-    Cx = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    Cx = [None] * n
     phi_x = model.addVars(n, vtype=GRB.BINARY)
-    Bphi = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    P_x = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY, name="Px")
+    Bphi = [None] * n
+    P_x = [None] * n
     M = 1e6
 
     for i in range(n):
-        model.addConstr(Cx[i] == gp.quicksum(C[i][j] * x[j] for j in range(n)))
+        Cx[i] = gp.quicksum(C[i][j] * x[j] for j in range(n))
         model.addConstr(x[i] + M * phi_x[i] >= 0)
         model.addConstr(x[i] <= M * (1 - phi_x[i]))
-        model.addConstr(Bphi[i] == gp.quicksum(B[i][j] * phi_x[j] for j in range(n)))
-        model.addConstr(P_x[i] == Cx[i] + r[i] - Bphi[i])
+        Bphi[i] = gp.quicksum(B[i][j] * phi_x[j] for j in range(n))
+        P_x[i] = Cx[i] + r[i] - Bphi[i]
 
     # State noise
 
-    x_tplus1_up_up = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_down_up = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_up_down = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_down_down = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    x_tplus1_up_up = [None] * n
+    x_tplus1_down_up = [None] * n
+    x_tplus1_up_down = [None] * n
+    x_tplus1_down_down = [None] * n
 
     for i in range(n):
-        model.addConstr(x_tplus1_up_up[i] == 1.1 * P_x[i])
-        model.addConstr(x_tplus1_down_down[i] == 0.9 * P_x[i])
+        x_tplus1_up_up[i] = 1.1 * P_x[i]
+        x_tplus1_down_down[i] = 0.9 * P_x[i]
 
-    model.addConstr(x_tplus1_up_down[0] == 1.1 * P_x[0])
-    model.addConstr(x_tplus1_up_down[1] == 0.9 * P_x[1])
-    model.addConstr(x_tplus1_down_up[0] == 0.9 * P_x[0])
-    model.addConstr(x_tplus1_down_up[1] == 1.1 * P_x[1])
+    x_tplus1_up_down[0] = 1.1 * P_x[0]
+    x_tplus1_up_down[1] = 0.9 * P_x[1]
+    x_tplus1_down_up[0] = 0.9 * P_x[0]
+    x_tplus1_down_up[1] = 1.1 * P_x[1]
 
     # Neural network V(x)
 
@@ -218,18 +218,65 @@ def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
 
     # supermartingale property
 
-    E_V_Y_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="E_V_X_tplus1")
-    model.addConstr(
-        E_V_Y_tplus1 == 0.25 * V_Py_up_up + 0.25 * V_Py_down_down + 0.25 * V_Py_up_down + 0.25 * V_Py_down_up)
+    E_V_Y_tplus1 = 0.25 * V_Py_up_up + 0.25 * V_Py_down_down + 0.25 * V_Py_up_down + 0.25 * V_Py_down_up
 
-    diff_expr = (x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1])
+    model.addConstr((x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1]) == 1)
 
-    model.setObjective(E_V_X_tplus1 - E_V_Y_tplus1, GRB.MAXIMIZE)
+    Rx = E_V_X_tplus1 - V_x
+    Ry = E_V_Y_tplus1 - V_y
+
+    numer = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    model.addConstr(numer <= Ry - Rx)
+    model.addConstr(numer >= Rx - Ry)
+
+    model.setObjective(numer, GRB.MAXIMIZE)
 
     model.optimize()
 
     if model.status == GRB.OPTIMAL:
-        return model.objVal ** 0.5
+
+        L = model.objVal
+
+        # Generate random points within 2D bounds
+        num_points = 100
+        x_bounds = domain_bounds
+        y_bounds = domain_bounds
+
+        # Generate random points within the specified bounds
+        points = np.random.rand(num_points, 2)
+        points[:, 0] = points[:, 0] * (x_bounds[1] - x_bounds[0]) + x_bounds[0]
+        points[:, 1] = points[:, 1] * (y_bounds[1] - y_bounds[0]) + y_bounds[0]
+
+        # Verify the Lipschitz constant
+        is_lipschitz = True
+
+        for i in range(num_points):
+            if i % 50 == 0:
+                print(i)
+            for j in range(i + 1, num_points):
+                x1, y1 = points[i]
+                x2, y2 = points[j]
+
+                # Calculate the Euclidean distance between points
+                distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+                if distance == 0:
+                    continue
+
+
+                # Calculate the difference in function values
+                diff_f = np.abs(e_v_p_x(np.array([[x1], [y1]]), np.array(C), np.array(B), np.array([r]).T, np.array(W1), np.array(W2), np.array([B1]).T, np.array([B2]).T) - e_v_p_x(np.array([[x2], [y2]]),np.array(C), np.array(B), np.array([r]).T, np.array(W1), np.array(W2), np.array([B1]).T, np.array([B2]).T))
+
+                # Check if the Lipschitz condition is violated
+                if diff_f > L * distance:
+                    is_lipschitz = False
+                    break
+
+        if is_lipschitz:
+            return model.objVal
+        else:
+            assert(is_lipschitz), "lipschitz test failed"
+            return
     else:
         return None
 
@@ -240,7 +287,7 @@ def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
 
 #
 # from run_model import generate_model_params
-# from function_application import e_v_p_x
+from function_application import e_v_p_x
 #
 #
 #

@@ -154,7 +154,7 @@ EVP = partial(e_v_p_x, C=C, B=B, r=r, W1=W1, W2=W2, B1=np.array([B1]).T, B2=np.a
 up = find_reward_upper_bound(2, 7, C, B, r, W1, W2, B1, B2)
 low = find_reward_lower_bound(2, 7, C, B, r, W1, W2, B1, B2)
 bounds = (-10, 30)
-L = calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, bounds)
+L = calculate_lipschitz_constant(2, 7, C, B, r, W1, W2, B1, B2, bounds, 0)
 
 
 # test = np.array([[1.6667707707454265],[0.5935334256882377]])
@@ -171,7 +171,7 @@ result = mab_algorithm(
     certificate=V,
     lipschitz=L,
     beta=abs(up-low),
-    max_iterations=10000
+    max_iterations=500000
 )
 #
 # def P(x):

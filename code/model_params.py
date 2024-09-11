@@ -1,76 +1,127 @@
 # # List of hyperparameters
 import numpy as np
-from equilibrium_set import EquilibriumSet
+from invariant_set import InvariantBall, check_invariant_set, find_point_in_invariant_set, construct_invariant_set
+from copy import deepcopy
 
 n = 2  # number of players (companies/countries/agents/...)
 m = 2  # number of assets
-time_steps = 10  # length of trajectory modelling
 
 # domain bounds
 max_bound = 30.0
 min_bound = -10.0
 
-C = np.array([[0., 0.0052315],
-              [0.00117426, 0.]])
 
-D = np.array([[0.06] * n] * m)
-p = np.array([[10] * m]).T  # TODO: shape of p in original cascade paper is unclear
+def negative_quad_invariant_check(C, r, beta, V_threshold, D, p):  # checks to see if the entire negative quadrant is invariant
+    Cinv = np.linalg.inv(np.eye(len(C)) - C)
 
-beta = np.array([[0.4] * n]).T  # definable
-B = np.diag(beta.T[0])  # Failure costs
+    check_1 = all(np.dot(Cinv, r - beta) < 0)  # Lemma 3.3, ensure an equilibrium point is in the negative quadrant
+    check_2 = not all(np.dot(Cinv, r) < 0)  # Lemma 3.4, ensure the entire plane is not invariant
+    check_3 = all(np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p) < beta)  # Theorem 3, ensure the negative quadrant is invariant
 
-V_threshold = np.array([[5] * n]).T  # Failure thresholds
+    return check_1 and check_2 and check_3
 
-r = np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p)
+
+def generate_random_C(n):
+    while True:
+        # Initialize matrix with zeros
+        C = np.zeros((n, n))
+
+        # Populate off-diagonal elements with random non-negative values
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    C[i, j] = np.random.random()
+
+        # Scale columns if necessary to ensure column sum < 1
+        column_sums = C.sum(axis=0)
+        scaling_factors = np.minimum(1, 1 / column_sums)
+        C = C * scaling_factors[np.newaxis, :]
+
+        # Check for nonsingularity (determinant must be non-zero)
+        if np.linalg.det(C) != 0 and np.linalg.det(np.eye(n) - C) != 0:
+            # print(np.linalg.inv(C))
+            # print(np.linalg.inv(np.eye(n) - C))
+            return C
+
+
+flag = False
+while not flag:
+    C = generate_random_C(n)
+
+    D = np.random.uniform(0, 0.1, (n, m))
+    p = np.array([[10] * m]).T  # paper has the shape incorrect sometimes
+
+    beta = np.array([[0.3] * n]).T  # definable
+    B = np.diag(beta.T[0])  # Failure costs
+
+    V_threshold = np.array([[5] * n]).T  # Failure thresholds
+
+    r = np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p)
+
+    flag = negative_quad_invariant_check(C, r, beta, V_threshold, D, p)
+
+
+
+
+
+
+
+
+
 
 # Equilibrium check
-Cinv = np.linalg.inv(np.eye(len(C)) - C)
-check1 = np.dot(Cinv, r - beta)
-check2 = np.dot(Cinv, r)
-assert(check1.shape == (n, 1))
-assert(check2.shape == (n, 1))
-positivity_check = [True if x[0] >= 0 else False for x in check2]
-negativity_check = [True if x[0] < 0 else False for x in check1]
+# Cinv = np.linalg.inv(np.eye(len(C)) - C)
+# check1 = np.dot(Cinv, r - beta)
+# check2 = np.dot(Cinv, r)
+# assert(check1.shape == (n, 1))
+# assert(check2.shape == (n, 1))
+# positivity_check = all([True if x[0] >= 0 else False for x in check2])
+# negativity_check = all([True if x[0] < 0 else False for x in check1])
+#
+# if positivity_check:
+#     print("positive equilibrium exists")
+#     if all([True if x[0] >= 0 else False for x in check1]):
+#         print("equilibrium is unique")
+#     Phi = deepcopy(r)
+#
+# elif negativity_check:
+#     print("negative equilibrium exists")
+#     if all([True if x[0] < 0 else False for x in check2]):
+#         print("equilibrium is unique")
+#     Phi = r - beta
+#
+# else:
+#     assert False, "no equilibrium found"
+#
+#
+# A, b = construct_invariant_set(2, n, C, Phi)
+#
+# invariant_check = check_invariant_set(n, C, B, r, A, b, (min_bound, max_bound))
+# print(invariant_check)
+#
+# print(find_point_in_invariant_set(n, A, b))
+#
+# from visualise import show_invariant_region
+# show_invariant_region(A, b, (-10, 0), 100000)
 
-if all(positivity_check):
-    print("positive equilibrium exists")
-    if all([True if x[0] >= 0 else False for x in check1]):
-        print("equilibrium is unique")
-if all(negativity_check):
-    print("negative equilibrium exists")
-    if all([True if x[0] < 0 else False for x in check2]):
-        print("equilibrium is unique")
+
+
 
 # invariant set
 # TODO: determine how to properly construct the invariant set
-NN = 10  # Number of iterations
-Psip = 2 * np.random.rand(n, 1) - np.ones((n, 1)) + 0.2 * np.ones((n, 1))  # Replace with your Psip
+NN = 5  # Number of iterations
 
 
-# Compute x_0 (initial random vector)
-x_0 = 2 * np.random.rand(n, 1) - np.ones((n, 1)) - np.random.rand(n, 1)
 
-# Start with A as the identity matrix
-A = np.eye(n)
-b = np.zeros((n, 1))
 
-# Iterate to construct A and b
-for k in range(1, NN + 1):
-    A = np.vstack((np.eye(n), np.dot(A, C)))
-    b_add = np.dot((np.eye(n) - np.linalg.matrix_power(C, k)), np.linalg.inv(np.eye(n) - C)).dot(Psip)
-    b = np.vstack((b, b_add))
 
-# Adjust b with initial condition x_0
-b = b + np.dot(A, x_0)
+# center = -4
+# A = InvariantBall([[center]] * n, 1)
+#
+# invalid_set, _ = A.check_invariant_ball(n, C, B, r, (min_bound, max_bound))
+#
+# assert invalid_set, "set is not invariant"
 
-# Print or return A and b
-print("Matrix A:")
-print(A)
-print("Vector b:")
-print(b)
-
-center = -4
-A = EquilibriumSet([[center]] * n, 2)
 
 
 #

@@ -1,18 +1,15 @@
-"""This function seeks to find the Lipschitz constant for the estimated reward, E[R(x)] = E[V(X')] - V(x) where X' ~ xP"""
+"""This function seeks to find the Lipschitz constant for the estimated reward, E[R(x)] = E[V(X')] - V(x) where X' ~ xP
+Use num_points parameter to perform a check on a random pair of points. To skip this step, set num_points to 0"""
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from function_application import e_v_p_x
 
-def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
+from functools import partial
+from function_application import e_r_x
+
+def calculate_lipschitz_constant(n, h, C, B, r, W1, W2, B1, B2, domain_bounds, num_points):
 
     model = gp.Model("Lipschitz Constant Calculation")
-
-    n = W1.shape[1]
-    h = W2.shape[1]
-    print(n, h)
-
-
 
     x = model.addVars(n, lb=domain_bounds[0], ub=domain_bounds[1], name="X")
     y = model.addVars(n, lb=domain_bounds[0], ub=domain_bounds[1], name="Y")
@@ -237,121 +234,54 @@ def calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds):
 
         L = model.objVal
 
-        # Generate random points within 2D bounds
-        num_points = 100
-        x_bounds = domain_bounds
-        y_bounds = domain_bounds
-
-        # Generate random points within the specified bounds
-        points = np.random.rand(num_points, 2)
-        points[:, 0] = points[:, 0] * (x_bounds[1] - x_bounds[0]) + x_bounds[0]
-        points[:, 1] = points[:, 1] * (y_bounds[1] - y_bounds[0]) + y_bounds[0]
-
-        # Verify the Lipschitz constant
-        is_lipschitz = True
-
-        for i in range(num_points):
-            if i % 50 == 0:
-                print(i)
-            for j in range(i + 1, num_points):
-                x1, y1 = points[i]
-                x2, y2 = points[j]
-
-                # Calculate the Euclidean distance between points
-                distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-
-                if distance == 0:
-                    continue
-
-
-                # Calculate the difference in function values
-                diff_f = np.abs(e_v_p_x(np.array([[x1], [y1]]), np.array(C), np.array(B), np.array([r]).T, np.array(W1), np.array(W2), np.array([B1]).T, np.array([B2]).T) - e_v_p_x(np.array([[x2], [y2]]),np.array(C), np.array(B), np.array([r]).T, np.array(W1), np.array(W2), np.array([B1]).T, np.array([B2]).T))
-
-                # Check if the Lipschitz condition is violated
-                if diff_f > L * distance:
-                    is_lipschitz = False
-                    break
+        if bool(num_points):
+            EVP = partial(e_r_x, C=np.array(C), B=np.array(B), r=np.array([r]).T, W1=np.array(W1), W2=np.array(W2), B1=np.array([B1]).T, B2=np.array([B2]).T)
+            is_lipschitz = lipschitz_check(L, EVP, num_points, n, domain_bounds)
+        else:
+            is_lipschitz = True
 
         if is_lipschitz:
             return model.objVal
         else:
-            assert(is_lipschitz), "lipschitz test failed"
+            assert is_lipschitz, "lipschitz test failed"
             return
     else:
         return None
 
 
+def lipschitz_check(L, function, num_points, n, domain_bounds):
+    # Generate random points within 2D bounds
+    x_bounds = domain_bounds
+    y_bounds = domain_bounds
 
+    # Generate random points within the specified bounds
+    points = np.random.rand(num_points, n)
+    points[:, 0] = points[:, 0] * (x_bounds[1] - x_bounds[0]) + x_bounds[0]
+    points[:, 1] = points[:, 1] * (y_bounds[1] - y_bounds[0]) + y_bounds[0]
 
-### Test sequence
+    # Verify the Lipschitz constant
+    is_lipschitz = True
 
-#
-# from run_model import generate_model_params
-from function_application import e_v_p_x
-#
-#
-#
-# W1 = np.array([[-0.51114511489868164062,  0.57946199178695678711],
-#         [ 0.32534515857696533203,  0.77040141820907592773],
-#         [ 0.29491353034973144531, -0.23997142910957336426],
-#         [ 0.13821397721767425537,  0.23935167491436004639],
-#         [-0.18271064758300781250, -0.37764522433280944824],
-#         [ 0.03944269940257072449,  0.05401853471994400024],
-#         [-0.22435133159160614014, -0.02875019051134586334]])
-#
-# W2 = np.array([[ 0.65042066574096679688,  0.47615325450897216797,
-#           0.11454802751541137695,  0.02800757251679897308,
-#          -0.04927513748407363892, -0.13231205940246582031,
-#           0.32181644439697265625]])
-#
-# B1 = np.array([-0.26514554023742675781,  0.23466676473617553711,
-#          0.69748425483703613281, -0.19338539242744445801,
-#         -0.22832578420639038086, -0.21010714769363403320,
-#         -1.01455318927764892578])
-#
-# B2 = np.array([0.11887560784816741943])
-#
-# C, _, _, B, _, _, r = generate_model_params(2, 2)
-#
-# domain_bounds = (-10, 30)
-#
-# L = calculate_lipschitz_constant(C, B, r, W1, W2, B1, B2, domain_bounds)
-#
-# def f(x, y):
-#     return e_v_p_x(np.array([[x], [y]]),C, B, r, W1, W2, np.array([B1]).T, np.array([B2]).T)
-#
-#
-#
-# # Generate random points within 2D bounds
-# num_points = 1000
-# x_bounds = (-10, 30)
-# y_bounds = (-10, 30)
-#
-# # Generate random points within the specified bounds
-# points = np.random.rand(num_points, 2)
-# points[:, 0] = points[:, 0] * (x_bounds[1] - x_bounds[0]) + x_bounds[0]
-# points[:, 1] = points[:, 1] * (y_bounds[1] - y_bounds[0]) + y_bounds[0]
-#
-# # Verify the Lipschitz constant
-# is_lipschitz = True
-#
-# for i in range(num_points):
-#     for j in range(i + 1, num_points):
-#         x1, y1 = points[i]
-#         x2, y2 = points[j]
-#
-#         # Calculate the Euclidean distance between points
-#         distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-#
-#         if distance == 0:
-#             continue
-#
-#         # Calculate the difference in function values
-#         diff_f = np.abs(f(x1, y1) - f(x2, y2))
-#
-#         # Check if the Lipschitz condition is violated
-#         if diff_f > L * distance:
-#             is_lipschitz = False
-#             break
-#
-# print(f"The function satisfies the Lipschitz condition: {is_lipschitz}")
+    for i in range(num_points):
+        if i % 100 == 0:
+            print(i)
+        for j in range(i + 1, num_points):
+            x1, y1 = points[i]
+            x2, y2 = points[j]
+
+            # Calculate the Euclidean distance between points
+            distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+            if distance == 0:
+                continue
+
+            # Calculate the difference in function values
+            diff_f = np.abs(
+                function(np.array([[x1], [y1]])) - function(np.array([[x2], [y2]])))
+
+            # Check if the Lipschitz condition is violated
+            if diff_f > L * distance:
+                is_lipschitz = False
+                break
+
+    return is_lipschitz

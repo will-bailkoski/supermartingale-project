@@ -3,6 +3,40 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import torch
 
+
+def show_invariant_region(A, b, x_bounds, num_points):
+
+    if len(x_bounds) != 2:
+        raise ValueError("Can only display invariant regions for two dimensions.")
+
+    xs = np.random.uniform(x_bounds[0], x_bounds[1], num_points)
+    ys = np.random.uniform(x_bounds[0], x_bounds[1], num_points)
+    plot_x = []
+    plot_y = []
+
+    for x, y in zip(xs, ys):
+        if all(A @ np.array([[x],[y]]) <= b):
+            plot_x.append(x)
+            plot_y.append(y)
+
+    # Initialize plot
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    # Plot the feasible region
+    ax.scatter(plot_x, plot_y, marker='.')
+
+    # Labeling and customization
+    ax.set_xlim(x_bounds[0], x_bounds[1])
+    ax.set_ylim(x_bounds[0], x_bounds[1])
+    ax.set_xlabel('$x_1$')
+    ax.set_ylabel('$x_2$')
+    ax.set_title('Feasible Region for $A\mathbf{x} \leq \mathbf{b}$')
+
+    # Show plot
+    plt.show()
+
+
+
 def plot_weight_distribution(model, epoch):
     plt.figure(figsize=(12, 5))
 

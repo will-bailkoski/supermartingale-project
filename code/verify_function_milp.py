@@ -3,18 +3,26 @@ import gurobipy as gp
 from gurobipy import GRB
 from model_params import min_bound, max_bound
 
-# TODO: fix quadratic constraint in equil_set check so that it becomes a true MILP solve
 
-
-def verify_model_gurobi(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
+def verify_model_gurobi(n, h, C, B, r, epsilon, W1, W2, B1, B2):
     model = gp.Model("verify_model")
 
     # State variables
     x = model.addVars(n, lb=min_bound, ub=max_bound, name="X")
+    model.setParam(GRB.Param.OutputFlag, 0)
 
     # Set A constraint (outside the equilibrium set)
-    squared_distance = gp.quicksum((x[i] - equil_set.center[i])**2 for i in range(n))
-    model.addConstr(squared_distance >= equil_set.radius**2 + 1e-6)  # ensure strict inequality
+    # squared_distance = gp.quicksum((x[i] - equil_set.center[i])**2 for i in range(n))
+    # model.addConstr(squared_distance >= equil_set.radius**2 + 1e-6)  # ensure strict inequality
+
+    z = model.addVar(vtype=GRB.BINARY, name="z")  # Binary variable
+
+    # Big M value (should be sufficiently large based on your problem context)
+    M = 1e6
+
+    # Add constraints to ensure the vector (x, y) is not in the negative quadrant
+    model.addConstr(x[0] >= -M * (1 - z), "x_pos_or_y_neg")
+    model.addConstr(x[1] >= -M * z, "y_pos_or_x_neg")
 
     # Transition kernel P(x)
     C = C.tolist()
@@ -134,13 +142,13 @@ def verify_model_gurobi(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
         # print("r: " + str(r))
         ## print("Px: " + str([P_x[i].X for i in range(n)]))
 
-        print(str(V_x.X))
-        print(str([x_tplus1_up_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_up.X))
-        print(str([x_tplus1_down_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_up.X))
-        print(str([x_tplus1_up_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_down.X))
-        print(str([x_tplus1_down_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_down.X))
-        print(E_V_X_tplus1.X)
-        print("milp ^^^")
+        # print(str(V_x.X))
+        # print(str([x_tplus1_up_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_up.X))
+        # print(str([x_tplus1_down_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_up.X))
+        # print(str([x_tplus1_up_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_down.X))
+        # print(str([x_tplus1_down_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_down.X))
+        # print(E_V_X_tplus1.X)
+        # print("milp ^^^")
         return True, counterexample
     else:
 

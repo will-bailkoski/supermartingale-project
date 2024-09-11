@@ -6,6 +6,9 @@ import numpy as np
 from itertools import product
 from model_params import n, m
 
+def e_r_x(x, C, B, r, W1, W2, B1, B2):
+    return e_v_p_x(x, C, B, r, W1, W2, B1, B2) - v_x(x, W1, W2, B1, B2)
+
 
 def e_v_p_x(x, C, B, r, W1, W2, B1, B2):
 

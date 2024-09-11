@@ -2,37 +2,47 @@ import numpy as np
 import random
 from typing import Callable, Tuple, List
 from scipy.spatial.distance import euclidean
-from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from collections import deque
-
-
-
+from sortedcontainers import SortedList
+import matplotlib.patches as patches
 
 sample_history = []
+ucbs = []
+rewards = []
 
 
 class TreeNode:
-    def __init__(self, bounds: List[Tuple[float, float]], parent=None):
+    def __init__(self, bounds: List[Tuple[float, float]], parent=None, integer_domain=False):
         self.count = 0
         self.reward_sum = 0
         self.bounds = bounds
         self.parent = parent
         self.left_child = None
         self.right_child = None
+        self.integer_domain = integer_domain
         self.diameter = self.compute_diameter()
+        if parent == None:
+            self.depth = 0
+        else:
+            self.depth = self.parent.depth + 1
 
-        # Iterate over the sample history and check if samples are within bounds
         for (sample, reward) in sample_history:
             if all(lower <= x <= upper for (x, (lower, upper)) in zip(sample, bounds)):
                 self.reward_sum += reward
                 self.count += 1
 
     def compute_diameter(self) -> float:
-        return euclidean(
-            [b[0] for b in self.bounds],
-            [b[1] for b in self.bounds]
-        )
+        if self.integer_domain:
+            return euclidean(
+                [int(b[0]) for b in self.bounds],
+                [int(b[1]) for b in self.bounds]
+            )
+        else:
+            return euclidean(
+                [b[0] for b in self.bounds],
+                [b[1] for b in self.bounds]
+            )
 
     def update(self, reward: float):
         self.count += 1
@@ -48,23 +58,40 @@ class TreeNode:
     def is_leaf(self):
         return self.left_child is None and self.right_child is None
 
+
 def compute_confidence_interval(node: TreeNode, t: int, beta: float, alpha: float) -> float:
     return (beta * np.sqrt(4 * np.log(t + 1) / max(1, node.count)) +
             alpha * node.diameter)
 
-def split_node(node: TreeNode, n_dims: int) -> tuple[TreeNode, TreeNode]:
 
+def compute_statistical_error(node: TreeNode, t: int, beta: float) -> float:
+    return beta * np.sqrt(4 * np.log(t + 1) / max(1, node.count))
+
+
+def compute_discretization_error(node: TreeNode, alpha: float) -> float:
+    return alpha * node.diameter
+
+
+def split_node(node: TreeNode, n_dims: int) -> tuple[TreeNode, TreeNode]:
     max_dim = max(range(n_dims), key=lambda i: node.bounds[i][1] - node.bounds[i][0])
-    mid = (node.bounds[max_dim][0] + node.bounds[max_dim][1]) / 2
+
+    if node.integer_domain:
+        mid = (int(node.bounds[max_dim][0]) + int(node.bounds[max_dim][1])) // 2
+    else:
+        mid = (node.bounds[max_dim][0] + node.bounds[max_dim][1]) / 2
 
     new_bounds1 = node.bounds.copy()
-    new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
-
     new_bounds2 = node.bounds.copy()
-    new_bounds2[max_dim] = (mid, node.bounds[max_dim][1])
 
-    node.left_child = TreeNode(new_bounds1, parent=node)
-    node.right_child = TreeNode(new_bounds2, parent=node)
+    if node.integer_domain:
+        new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
+        new_bounds2[max_dim] = (mid + 1, node.bounds[max_dim][1])
+    else:
+        new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
+        new_bounds2[max_dim] = (mid, node.bounds[max_dim][1])
+
+    node.left_child = TreeNode(new_bounds1, parent=node, integer_domain=node.integer_domain)
+    node.right_child = TreeNode(new_bounds2, parent=node, integer_domain=node.integer_domain)
 
     return node.left_child, node.right_child
 
@@ -72,8 +99,10 @@ def split_node(node: TreeNode, n_dims: int) -> tuple[TreeNode, TreeNode]:
 def state_to_column(state):
     return np.array([state]).T
 
+
 def column_to_state(state):
     return state.T[0]
+
 
 class Graphs:
     def __init__(self):
@@ -88,8 +117,8 @@ class Graphs:
 
     def update(self, root: TreeNode, current: TreeNode, t: int, beta: float, l: float):
         self.num_nodes.append(self.num_nodes[-1])
-        ucb = current.estimated_reward + compute_confidence_interval(current, t, beta, l)
-        lcb = current.estimated_reward - compute_confidence_interval(current, t, beta, l)
+        ucb = current.estimated_reward + compute_confidence_interval(current, len(sample_history), beta, l)
+        lcb = current.estimated_reward - compute_confidence_interval(current, len(sample_history), beta, l)
         self.confidence.append(beta * np.sqrt(4 * np.log(t + 1) / max(1, current.count)))
         self.count_no.append(current.count)
         self.diameter.append(l * current.diameter)
@@ -98,9 +127,6 @@ class Graphs:
         self.avg_reward.append(current.estimated_reward)
 
         self.get_leaf_nodes(root)
-
-
-
 
         # heatmap data
         for node in self.get_leaf_nodes(root):
@@ -140,28 +166,59 @@ class Graphs:
 
         return max_depth
 
-    def plot_metrics(self, resolution):
+    def plot_metrics(self, resolution, root, epsilon, beta, lipschitz, bounds):
+
         fig, axs = plt.subplots(2, 2, figsize=(15, 15))
-        axs[0, 0].scatter([x[0][0] for x in sample_history], [x[0][1] for x in sample_history], marker='.')
-        axs[0, 0].set_title('scatterplot')
-        # axs[0, 0].set_xlabel('Iteration')
-        # axs[0, 0].set_ylabel('Count')
 
-        axs[0, 1].plot(self.max_ucb, label='Max UCB')
-        axs[0, 1].plot(self.min_lcb, label='Min LCB')
-        axs[0, 1].plot([0] * len(self.max_ucb), dashes=[4, 4])
-        #axs[0, 1].plot(self.diameter, label='diameter')
-        #axs[0, 1].plot(self.confidence, label='confidence')
-        # axs[0, 1].plot(self.count_no, label='count')
-        axs[0, 1].set_title('UCB and LCB')
-        axs[0, 1].set_xlabel('Iteration')
-        axs[0, 1].set_ylabel('Value')
-        axs[0, 1].legend()
+        scatter = axs[0, 0].scatter([x[0][0] for x in sample_history], [x[0][1] for x in sample_history], marker='.',
+                                    c=[x[1] for x in sample_history], cmap='viridis')
+        axs[0, 0].set_title('Scatterplot of samples over state space')
+        fig.colorbar(scatter, ax=axs[0, 0], label='MAB reward')
 
-        axs[1, 0].plot(self.avg_reward)
-        axs[1, 0].set_title('Average Estimated Reward')
+        leaf_nodes = self.get_leaf_nodes(root)
+        rectangles = [(x.bounds, (
+            x.count, x.estimated_reward + compute_confidence_interval(x, len(sample_history), beta, lipschitz),
+            lipschitz * x.diameter, (beta * np.sqrt(4 * np.log(len(sample_history) + 1) / max(1, x.count))),
+            x.estimated_reward)) for x in leaf_nodes]
+
+        # Loop through the list of rectangles and plot each one
+        i = 0
+        for rect in rectangles:
+            i += 1
+            ((x_min, x_max), (y_min, y_max)), labels = rect
+            width = x_max - x_min
+            height = y_max - y_min
+            axs[0, 1].add_patch(
+                patches.Rectangle(
+                    (x_min, y_min),  # (x, y) position of the bottom left corner
+                    width,  # width of the rectangle
+                    height,  # height of the rectangle
+                    edgecolor='blue',  # outline color
+                    facecolor='none',  # no fill color
+                    linewidth=.5
+                )
+            )
+        # Set the limits of the plot to cover all rectangles
+        axs[0, 1].set_xlim(bounds[0], bounds[1])
+        axs[0, 1].set_ylim(bounds[0], bounds[1])
+        # Set aspect of the plot to be equal to maintain the aspect ratio of rectangles
+        axs[0, 1].set_aspect('equal', adjustable='box')
+        axs[0, 1].set_title('Griding of state space')
+
+        axs[1, 0].plot(rewards)
+        axs[1, 0].set_title('Estimated Reward of Current Leaf')
         axs[1, 0].set_xlabel('Iteration')
-        axs[1, 0].set_ylabel('Value')
+        axs[1, 0].set_ylabel('Reward')
+
+        axs[1, 1].plot(ucbs, label='Max UCB')
+        axs[1, 1].plot([2 * x - y for (x, y) in zip(rewards, ucbs)], label='Min LCB')
+        axs[1, 1].plot([epsilon] * len(sample_history), dashes=[4, 4])
+        axs[1, 1].plot([-epsilon] * len(sample_history), dashes=[4, 4])
+        axs[1, 1].set_title('UCB and LCB')
+        axs[1, 1].set_xlabel('Iteration')
+        axs[1, 1].set_ylabel('Reward')
+        axs[1, 1].legend()
+        # print(self.diameter[45])
 
         # Extract data for heatmap
 
@@ -185,9 +242,9 @@ class Graphs:
         # axs[1, 1].set_xlabel('X coordinate')
         # axs[1, 1].set_ylabel('Y coordinate')
 
-
         plt.tight_layout()
         plt.show()
+
 
 def mab_algorithm(
         initial_bounds: List[Tuple[float, float]],
@@ -195,19 +252,21 @@ def mab_algorithm(
         certificate: Callable[[np.ndarray], float],
         lipschitz: float,
         beta: float,
-        max_iterations: int
+        max_iterations: int,
+        epsilon: float,
 ) -> bool:
     root = TreeNode(initial_bounds)
     n_dims = len(initial_bounds)
     t = 0
-    too_deep = False
 
     split_node(root, n_dims)
 
     monitor = Graphs()
 
+    nodes = SortedList([(root, root.estimated_reward + compute_confidence_interval(root, t, beta, lipschitz))],
+                       key=lambda x: x[1])
+
     while t < max_iterations:
-        t += 1
 
         leaf_nodes = monitor.get_leaf_nodes(root)
 
@@ -215,51 +274,76 @@ def mab_algorithm(
             print("iteration: ", t)
 
         # Select node with highest UCB
-        ucbs = [node.estimated_reward + compute_confidence_interval(node, t, beta, lipschitz)
-                for node in leaf_nodes]
-        selected_node = leaf_nodes[np.argmax(ucbs)]
+
+        selected_node, ucb = nodes.pop(-1)
+
+        ucbs.append(ucb)
 
         # Sample and compute reward
+
         sample = np.array([np.random.uniform(*b) for b in selected_node.bounds])
 
         x = state_to_column(sample)
         x_next = random.choice(dynamics(x))
 
-        reward = certificate(x_next) - certificate(x)
+        reward = certificate(x_next) - certificate(x) - epsilon
         selected_node.update(reward)
-
         sample_history.append((sample, reward))
+        rewards.append(reward)
+        t += 1
 
-        monitor.update(root, selected_node, t, beta, lipschitz)
+        # monitor.update(root, selected_node, len(sample_history), beta, lipschitz)
 
         # termination conditions
-        if max(ucbs) <= 0:
-            monitor.plot_metrics(50)
+        if ucb < 0:
+            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
+            print(f"Certificate is VALID, iterations: {t}, tree depth: {monitor.depth(root)}")
+            sample_history.clear()
+            rewards.clear()
+            ucbs.clear()
             return True  # Certificate is valid
-        if selected_node.estimated_reward - compute_confidence_interval(selected_node, t, beta, lipschitz) > 0:
-            monitor.plot_metrics(50)
+        if selected_node.estimated_reward - compute_confidence_interval(selected_node, len(sample_history), beta,
+                                                                        lipschitz) > 0:
+            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
+            print(f"Certificate is INVALID, iterations: {t}, tree depth: {monitor.depth(root)}")
+            sample_history.clear()
+            rewards.clear()
+            ucbs.clear()
             return False  # Certificate is invalid
 
         # Split node
-        if not too_deep:
+        if selected_node.depth < 1000 and compute_statistical_error(selected_node, t,
+                                                                    beta) < compute_discretization_error(selected_node,
+                                                                                                         lipschitz):
             left, right = split_node(selected_node, n_dims)
-            for child in [left, right]:
-                sample = np.array([np.random.uniform(*b) for b in child.bounds])
+            nodes.add((left, left.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
+            nodes.add((right, right.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
+            # for child in [left, right]:
+            #     if integer_domain:
+            #         sample = np.array([np.random.randint(int(b[0]), int(b[1]) + 1) for b in child.bounds])
+            #     else:
+            #         sample = np.array([np.random.uniform(*b) for b in child.bounds])
+            #
+            #     x = state_to_column(sample)
+            #     x_next = random.choice(dynamics(x))
+            #
+            #     reward = certificate(x_next) - certificate(x) - 10
+            #     #reward = x[1][0] ** 2 + x[0][0] ** 2 + random.random() - 0.5
+            #     selected_node.update(reward)
+            #
+            #     sample_history.append((sample, reward))
 
-                x = state_to_column(sample)
-                x_next = random.choice(dynamics(x))
+            # monitor.update(root, child, t, beta, lipschitz)
+        else:
+            nodes.add((selected_node,
+                       selected_node.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
 
-                reward = certificate(x_next) - certificate(x)
-                selected_node.update(reward)
+    # Display the plot
+    plt.show()
+    monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
 
-                sample_history.append((sample, reward))
-
-                monitor.update(root, selected_node, t, beta, lipschitz)
-
-            if monitor.depth(root) > 50:
-                too_deep = True
-
-    print(sample_history)
-    monitor.plot_metrics(50)
-    compute_confidence_interval(selected_node, t, beta, lipschitz)
+    print(compute_confidence_interval(selected_node, t, beta, lipschitz))
+    sample_history.clear()
+    rewards.clear()
+    ucbs.clear()
     raise ValueError("Maximum iterations reached without conclusion")

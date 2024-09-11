@@ -13,7 +13,7 @@ def z3_value_to_double(val):
             raise ValueError(f"Cannot convert {val} of type {type(val)} to double")
 
 
-def verify_model(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
+def verify_model(n, h, C, B, r, epsilon, W1, W2, B1, B2):
     solver = Solver()
 
     # state
@@ -25,8 +25,10 @@ def verify_model(n, h, equil_set, C, B, r, epsilon, W1, W2, B1, B2):
         solver.add(xi <= max_bound)
 
     # set A
-    squared_distance = sum((p_ - c[0]) ** 2 for p_, c in zip(x, equil_set.center))
-    solver.add(squared_distance > equil_set.radius ** 2)
+    # squared_distance = sum((p_ - c[0]) ** 2 for p_, c in zip(x, equil_set.center))
+    # solver.add(squared_distance > equil_set.radius ** 2)
+
+    solver.add(z3.Or(x[0] >= 0, x[1] >= 0))
 
     # model parameters
     C = C.tolist()

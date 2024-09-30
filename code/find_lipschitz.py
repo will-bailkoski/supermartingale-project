@@ -69,57 +69,57 @@ def calculate_lipschitz_constant(n, h, C, B, r, W1, W2, B1, B2, domain_bounds, n
 
     # expected neural output of V(P(x))
 
-    hidden_layer_Px_up_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_up_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_up_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_up_up = model.addVar(lb=0, ub=GRB.INFINITY)
+    hidden_layer_Px_up_up = [None] * h
+    hidden_layer_Px_up_up2 = None
+    relu_layer_Px_up_up = [None] * h
+    V_Px_up_up = None
 
-    hidden_layer_Px_down_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_down_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_down_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_down_down = model.addVar(lb=0, ub=GRB.INFINITY)
+    hidden_layer_Px_down_down = [None] * h
+    hidden_layer_Px_down_down2 = None
+    relu_layer_Px_down_down = [None] * h
+    V_Px_down_down = None
 
-    hidden_layer_Px_up_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_up_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_up_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_up_down = model.addVar(lb=0, ub=GRB.INFINITY)
+    hidden_layer_Px_up_down = [None] * h
+    hidden_layer_Px_up_down2 = None
+    relu_layer_Px_up_down = [None] * h
+    V_Px_up_down = None
 
-    hidden_layer_Px_down_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_down_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_down_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_down_up = model.addVar(lb=0, ub=GRB.INFINITY)
+    hidden_layer_Px_down_up = [None] * h
+    hidden_layer_Px_down_up2 = None
+    relu_layer_Px_down_up = [None] * h
+    V_Px_down_up = None
 
     for j in range(h):
-        model.addConstr(hidden_layer_Px_up_up[j] == gp.quicksum(W1[j][i] * x_tplus1_up_up[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_up_up[j] == gp.max_(hidden_layer_Px_up_up[j], constant=0))
-        model.addConstr(
-            hidden_layer_Px_down_up[j] == gp.quicksum(W1[j][i] * x_tplus1_down_up[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_down_up[j] == gp.max_(hidden_layer_Px_down_up[j], constant=0))
-        model.addConstr(
-            hidden_layer_Px_up_down[j] == gp.quicksum(W1[j][i] * x_tplus1_up_down[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_up_down[j] == gp.max_(hidden_layer_Px_up_down[j], constant=0))
-        model.addConstr(
-            hidden_layer_Px_down_down[j] == gp.quicksum(W1[j][i] * x_tplus1_down_down[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_down_down[j] == gp.max_(hidden_layer_Px_down_down[j], constant=0))
+        hidden_layer_Px_up_up[j] = gp.quicksum(W1[j][i] * x_tplus1_up_up[i] for i in range(n)) + B1[j]
+        relu_layer_Px_up_up[j] = gp.max_(hidden_layer_Px_up_up[j], constant=0)
 
-    model.addConstr(hidden_layer_Px_up_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_up[i] for i in range(h)) + B2[0])
-    model.addConstr(
-        hidden_layer_Px_down_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_up[i] for i in range(h)) + B2[0])
-    model.addConstr(
-        hidden_layer_Px_up_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_down[i] for i in range(h)) + B2[0])
-    model.addConstr(
-        hidden_layer_Px_down_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_down[i] for i in range(h)) + B2[0])
+        hidden_layer_Px_down_up[j] = gp.quicksum(W1[j][i] * x_tplus1_down_up[i] for i in range(n)) + B1[j]
+        relu_layer_Px_down_up[j] = gp.max_(hidden_layer_Px_down_up[j], constant=0)
 
-    model.addConstr(V_Px_down_up == gp.max_(hidden_layer_Px_down_up2, constant=0))
-    model.addConstr(V_Px_up_down == gp.max_(hidden_layer_Px_up_down2, constant=0))
-    model.addConstr(V_Px_up_up == gp.max_(hidden_layer_Px_up_up2, constant=0))
-    model.addConstr(V_Px_down_down == gp.max_(hidden_layer_Px_down_down2, constant=0))
+        hidden_layer_Px_up_down[j] = gp.quicksum(W1[j][i] * x_tplus1_up_down[i] for i in range(n)) + B1[j]
+        relu_layer_Px_up_down[j] = gp.max_(hidden_layer_Px_up_down[j], constant=0)
+
+        hidden_layer_Px_down_down[j] = gp.quicksum(W1[j][i] * x_tplus1_down_down[i] for i in range(n)) + B1[j]
+        relu_layer_Px_down_down[j] = gp.max_(hidden_layer_Px_down_down[j], constant=0)
+
+    hidden_layer_Px_up_up2 = gp.quicksum(W2[0][i] * relu_layer_Px_up_up[i] for i in range(h)) + B2[0]
+
+    hidden_layer_Px_down_up2 = gp.quicksum(W2[0][i] * relu_layer_Px_down_up[i] for i in range(h)) + B2[0]
+
+    hidden_layer_Px_up_down2 = gp.quicksum(W2[0][i] * relu_layer_Px_up_down[i] for i in range(h)) + B2[0]
+
+    hidden_layer_Px_down_down2 = gp.quicksum(W2[0][i] * relu_layer_Px_down_down[i] for i in range(h)) + B2[0]
+
+    V_Px_down_up = gp.max_(hidden_layer_Px_down_up2, constant=0)
+    V_Px_up_down = gp.max_(hidden_layer_Px_up_down2, constant=0)
+    V_Px_up_up = gp.max_(hidden_layer_Px_up_up2, constant=0)
+    V_Px_down_down = gp.max_(hidden_layer_Px_down_down2, constant=0)
 
     # supermartingale property
 
-    E_V_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="E_V_X_tplus1")
-    model.addConstr(
-        E_V_X_tplus1 == 0.25 * V_Px_up_up + 0.25 * V_Px_down_down + 0.25 * V_Px_up_down + 0.25 * V_Px_down_up)
+    E_V_X_tplus1 = None
+
+    E_V_X_tplus1 = 0.25 * V_Px_up_up + 0.25 * V_Px_down_down + 0.25 * V_Px_up_down + 0.25 * V_Px_down_up
 
 
 #### Y

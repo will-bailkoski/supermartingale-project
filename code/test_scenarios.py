@@ -4,9 +4,7 @@ from run_model import generate_model_params
 from MAB_algorithm import mab_algorithm
 #from old_mab import mab_algorithm
 
-from verify_function_z3 import verify_model
-from verify_function_milp import verify_model_gurobi
-from model_params import A, n
+from model_params import n
 from functools import partial
 from find_lipschitz import calculate_lipschitz_constant
 
@@ -139,7 +137,7 @@ B1 = np.array([-0.75074553489685058594,  0.50885915756225585938,
 B2 = np.array([-0.22296056151390075684])
 
 
-from find_upper import find_reward_upper_bound
+from cascade_reward_bound import find_reward_upper_bound
 from find_lower import find_reward_lower_bound
 C, _, _, B, _, _, r = generate_model_params(2, 2)
 #

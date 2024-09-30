@@ -66,7 +66,7 @@ def plot_weight_changes(weight_history):
     plt.title('FC1 Weight Changes Over Time')
     plt.xlabel('Epoch')
     plt.ylabel('Weight Value')
-    plt.legend()
+
 
     plt.subplot(1, 2, 2)
     fc2_weights = np.array(weight_history['fc2'])
@@ -75,7 +75,7 @@ def plot_weight_changes(weight_history):
     plt.title('FC2 Weight Changes Over Time')
     plt.xlabel('Epoch')
     plt.ylabel('Weight Value')
-    plt.legend()
+
 
     plt.tight_layout()
     plt.show()

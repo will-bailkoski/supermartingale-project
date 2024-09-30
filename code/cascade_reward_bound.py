@@ -1,28 +1,15 @@
-"""A function for validating a CEGIS supermartingale via Gurobi's MILP solver"""
+"""This function seeks to find the upper-bound for the reward function E[R(x)] = E[V(X')] - V(x) where X' ~ xP"""
 import gurobipy as gp
 from gurobipy import GRB
 from model_params import min_bound, max_bound
 
 
-def verify_model_gurobi(n, h, C, B, r, epsilon, W1, W2, B1, B2):
-    model = gp.Model("verify_model")
+def find_reward_bound(n, h, C, B, r, W1, W2, B1, B2, epsilon, upper):
+    model = gp.Model()
 
     # State variables
     x = model.addVars(n, lb=min_bound, ub=max_bound, name="X")
-    model.setParam(GRB.Param.OutputFlag, 0)
 
-    # Set A constraint (outside the equilibrium set)
-    # squared_distance = gp.quicksum((x[i] - equil_set.center[i])**2 for i in range(n))
-    # model.addConstr(squared_distance >= equil_set.radius**2 + 1e-6)  # ensure strict inequality
-
-    z = model.addVar(vtype=GRB.BINARY, name="z")  # Binary variable
-
-    # Big M value (should be sufficiently large based on your problem context)
-    M = 1e6
-
-    # Add constraints to ensure the vector (x, y) is not in the negative quadrant
-    model.addConstr(x[0] >= -M * (1 - z), "x_pos_or_y_neg")
-    model.addConstr(x[1] >= -M * z, "y_pos_or_x_neg")
 
     # Transition kernel P(x)
     C = C.tolist()
@@ -127,29 +114,16 @@ def verify_model_gurobi(n, h, C, B, r, epsilon, W1, W2, B1, B2):
     E_V_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="E_V_X_tplus1")
     model.addConstr(E_V_X_tplus1 == 0.25 * V_Px_up_up + 0.25 * V_Px_down_down + 0.25 * V_Px_up_down + 0.25 * V_Px_down_up)
 
-    model.addConstr(E_V_X_tplus1 >= V_x - epsilon + 1e-6)
+    if upper:
+        model.setObjective(E_V_X_tplus1 - V_x, GRB.MAXIMIZE)
+    else:
+        model.setObjective(E_V_X_tplus1 - V_x, GRB.MINIMIZE)
 
     # Solve the model
     model.optimize()
 
     # Check if a solution was found
     if model.status == GRB.OPTIMAL:
-        counterexample = [x[i].X for i in range(n)]
-        #print(counterexample)
-        # print("Cx: " + str([Cx[i].X for i in range(n)]))
-        # #print([phi_x[i].X for i in range(n)])
-        # print("Bphi: " + str([Bphi[i].X for i in range(n)]))
-        # print("r: " + str(r))
-        ## print("Px: " + str([P_x[i].X for i in range(n)]))
-
-        # print(str(V_x.X))
-        # print(str([x_tplus1_up_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_up.X))
-        # print(str([x_tplus1_down_up[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_up.X))
-        # print(str([x_tplus1_up_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_up_down.X))
-        # print(str([x_tplus1_down_down[i].X for i in range(n)]) + "  ->  " + str(V_Px_down_down.X))
-        # print(E_V_X_tplus1.X)
-        # print("milp ^^^")
-        return True, counterexample
+        return model.objVal, [x[0].X, x[1].X]
     else:
-
         return False, None

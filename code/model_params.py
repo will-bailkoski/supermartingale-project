@@ -10,6 +10,9 @@ m = 2  # number of assets
 max_bound = 30.0
 min_bound = -10.0
 
+max_bound = 30.0
+min_bound = 10.0
+
 
 def negative_quad_invariant_check(C, r, beta, V_threshold, D, p):  # checks to see if the entire negative quadrant is invariant
     Cinv = np.linalg.inv(np.eye(len(C)) - C)

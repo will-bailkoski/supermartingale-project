@@ -116,22 +116,28 @@ class Graphs:
         self.count_no = []
 
     def update(self, root: TreeNode, current: TreeNode, t: int, beta: float, l: float):
-        self.num_nodes.append(self.num_nodes[-1])
-        ucb = current.estimated_reward + compute_confidence_interval(current, len(sample_history), beta, l)
-        lcb = current.estimated_reward - compute_confidence_interval(current, len(sample_history), beta, l)
-        self.confidence.append(beta * np.sqrt(4 * np.log(t + 1) / max(1, current.count)))
-        self.count_no.append(current.count)
-        self.diameter.append(l * current.diameter)
+
+        # bottom right graph
+        ucb = current.estimated_reward + compute_confidence_interval(current, t, beta, l)
+        lcb = current.estimated_reward - compute_confidence_interval(current, t, beta, l)
         self.max_ucb.append(ucb)
         self.min_lcb.append(lcb)
+
+        # bottom left graph
         self.avg_reward.append(current.estimated_reward)
 
-        self.get_leaf_nodes(root)
+        # self.num_nodes.append(self.num_nodes[-1])
 
-        # heatmap data
-        for node in self.get_leaf_nodes(root):
-            center = [(b[0] + b[1]) / 2 for b in node.bounds]
-            self.heatmap_data.append((center, node.count))
+        # self.confidence.append(beta * np.sqrt(4 * np.log(t + 1) / max(1, current.count)))
+        # self.count_no.append(current.count)
+        # self.diameter.append(l * current.diameter)
+
+        # self.get_leaf_nodes(root)
+        #
+        # # heatmap data
+        # for node in self.get_leaf_nodes(root):
+        #     center = [(b[0] + b[1]) / 2 for b in node.bounds]
+        #     self.heatmap_data.append((center, node.count))
 
     def get_leaf_nodes(self, root: TreeNode) -> List[TreeNode]:
         leaf_nodes = []
@@ -167,6 +173,8 @@ class Graphs:
         return max_depth
 
     def plot_metrics(self, resolution, root, epsilon, beta, lipschitz, bounds):
+
+        print("Plotting graph...")
 
         fig, axs = plt.subplots(2, 2, figsize=(15, 15))
 
@@ -258,25 +266,41 @@ def mab_algorithm(
     root = TreeNode(initial_bounds)
     n_dims = len(initial_bounds)
     t = 0
-
-    split_node(root, n_dims)
-
     monitor = Graphs()
 
+    # Initial griding and sample
     nodes = SortedList([(root, root.estimated_reward + compute_confidence_interval(root, t, beta, lipschitz))],
                        key=lambda x: x[1])
 
-    while t < max_iterations:
+    nodes.pop(-1)
+    for leaf in split_node(root, n_dims):
+        sample = np.array([np.random.uniform(*b) for b in leaf.bounds])
 
-        leaf_nodes = monitor.get_leaf_nodes(root)
+        x = state_to_column(sample)
+        x_next = random.choice(dynamics(x))
+
+        reward = certificate(x_next) - certificate(x) - epsilon
+
+        leaf.update(reward)
+        sample_history.append((sample, reward))
+        rewards.append(reward)
+        t += 1
+
+        ucb = compute_confidence_interval(leaf, t, beta, lipschitz)
+        ucbs.append(ucb)
+
+        nodes.add((leaf, leaf.estimated_reward + ucb))
+
+    while t < max_iterations:
 
         if t % 1000 == 0:
             print("iteration: ", t)
+        if t % 100000 == 1:
+            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
 
         # Select node with highest UCB
 
         selected_node, ucb = nodes.pop(-1)
-
         ucbs.append(ucb)
 
         # Sample and compute reward
@@ -286,7 +310,8 @@ def mab_algorithm(
         x = state_to_column(sample)
         x_next = random.choice(dynamics(x))
 
-        reward = certificate(x_next) - certificate(x) - epsilon
+        reward = certificate(x_next) - certificate(x)
+
         selected_node.update(reward)
         sample_history.append((sample, reward))
         rewards.append(reward)
@@ -295,15 +320,15 @@ def mab_algorithm(
         # monitor.update(root, selected_node, len(sample_history), beta, lipschitz)
 
         # termination conditions
-        if ucb < 0:
+        if ucb <= epsilon:
             monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
             print(f"Certificate is VALID, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
             rewards.clear()
             ucbs.clear()
             return True  # Certificate is valid
-        if selected_node.estimated_reward - compute_confidence_interval(selected_node, len(sample_history), beta,
-                                                                        lipschitz) > 0:
+        if selected_node.estimated_reward - compute_confidence_interval(selected_node, t, beta,
+                                                                        lipschitz) > -epsilon:
             monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
             print(f"Certificate is INVALID, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
@@ -316,8 +341,8 @@ def mab_algorithm(
                                                                     beta) < compute_discretization_error(selected_node,
                                                                                                          lipschitz):
             left, right = split_node(selected_node, n_dims)
-            nodes.add((left, left.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
-            nodes.add((right, right.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
+            nodes.add((left, left.estimated_reward + compute_confidence_interval(left, t, beta, lipschitz)))
+            nodes.add((right, right.estimated_reward + compute_confidence_interval(right, t, beta, lipschitz)))
             # for child in [left, right]:
             #     if integer_domain:
             #         sample = np.array([np.random.randint(int(b[0]), int(b[1]) + 1) for b in child.bounds])
@@ -336,13 +361,14 @@ def mab_algorithm(
             # monitor.update(root, child, t, beta, lipschitz)
         else:
             nodes.add((selected_node,
-                       selected_node.estimated_reward + compute_confidence_interval(left, t * 2, beta, lipschitz)))
+                       selected_node.estimated_reward + compute_confidence_interval(selected_node, t, beta, lipschitz)))
 
     # Display the plot
     plt.show()
     monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
 
-    print(compute_confidence_interval(selected_node, t, beta, lipschitz))
+    print(ucbs[-1], 2 * rewards[-1] - ucbs[-1])
+    print(max(rewards))
     sample_history.clear()
     rewards.clear()
     ucbs.clear()

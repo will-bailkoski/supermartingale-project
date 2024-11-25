@@ -4,9 +4,9 @@ import numpy as np
 
 params = {
     'n_dims' : 2,
-    'bounds' : (-10, 10),
-    'epsilon': 1,
-    'max_its': 10000000,
+    'bounds' : (-0.75, 0.75),
+    'epsilon': 0,
+    'max_its': 50000000,
 }
 
 
@@ -19,7 +19,7 @@ def ReLU(x):
 
 def V_not_supermartingale(xs):
     # return sum([x[0] ** 2 for x in xs])  # should be invalid
-    return -0.01 * sum([-5 * x[0] ** 3 + 15 * x[0] ** 2 + x[0] * 3 for x in xs])  # should be invalid
+    return -0.01 * sum([-2 * x[0] ** 3 + 25 * x[0] ** 2 for x in xs])  # should be invalid
 
 
 def V_is_supermartingale(xs):
@@ -36,21 +36,12 @@ def P(xs):
         two -= 1
     new = [[one], [two]]
     return np.array([new, new])
-
-# test = np.array([[-10], [-10]])
+#
+# test = np.array([[1], [1]])
 # import random
 #
+# print(P(test))
 # print(V_not_supermartingale(random.choice(P(test))), V_not_supermartingale(test), V_not_supermartingale(random.choice(P(test))) - V_not_supermartingale(test))
-
-print("Testing invalid certificate")
-result_1 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
-                                       dynamics=P,
-                                       certificate=V_not_supermartingale,
-                                       lipschitz=17.97,
-                                       beta=20,
-                                       max_iterations=params['max_its'],
-                                       epsilon=params['epsilon']
-                                       )
 
 
 print("Testing valid certificate")
@@ -62,6 +53,19 @@ result_2 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
                                        max_iterations=params['max_its'],
                                        epsilon=params['epsilon']
                                        )
+
+
+print("Testing invalid certificate")
+result_1 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
+                                       dynamics=P,
+                                       certificate=V_not_supermartingale,
+                                       lipschitz=1.76,
+                                       beta=12,
+                                       max_iterations=params['max_its'],
+                                       epsilon=params['epsilon']
+                                       )
+
+
 
 
 

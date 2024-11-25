@@ -1,15 +1,19 @@
 """This function seeks to find the upper-bound for the reward function E[R(x)] = E[V(X')] - V(x) where X' ~ xP"""
 import gurobipy as gp
 from gurobipy import GRB
-from model_params import min_bound, max_bound
 
 
-def find_reward_bound(n, h, C, B, r, W1, W2, B1, B2, epsilon, upper):
+def find_reward_bound(n, h, C, B, r, W1, W2, B1, B2, bounds, upper):
     model = gp.Model()
+    model.setParam(GRB.Param.OutputFlag, 0)
 
     # State variables
-    x = model.addVars(n, lb=min_bound, ub=max_bound, name="X")
-
+    x = model.addVars(
+        n,
+        lb={i: bounds[i][0] for i in range(n)},  # Lower bounds from the list
+        ub={i: bounds[i][1] for i in range(n)},  # Upper bounds from the list
+        name="X"
+    )
 
     # Transition kernel P(x)
     C = C.tolist()
@@ -111,19 +115,18 @@ def find_reward_bound(n, h, C, B, r, W1, W2, B1, B2, epsilon, upper):
 
     # supermartingale property
 
-    E_V_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="E_V_X_tplus1")
-    model.addConstr(E_V_X_tplus1 == 0.25 * V_Px_up_up + 0.25 * V_Px_down_down + 0.25 * V_Px_up_down + 0.25 * V_Px_down_up)
+    maxV_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="maxV_X_tplus1")
+    model.addConstr(maxV_X_tplus1 == gp.max_(V_Px_up_up, V_Px_down_down, V_Px_up_down, V_Px_down_up))
+
+    minV_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="minV_X_tplus1")
+    model.addConstr(minV_X_tplus1 == gp.min_(V_Px_up_up, V_Px_down_down, V_Px_up_down, V_Px_down_up))
 
     if upper:
-        model.setObjective(E_V_X_tplus1 - V_x, GRB.MAXIMIZE)
+        model.setObjective(maxV_X_tplus1 - V_x, GRB.MAXIMIZE)
     else:
-        model.setObjective(E_V_X_tplus1 - V_x, GRB.MINIMIZE)
+        model.setObjective(minV_X_tplus1 - V_x, GRB.MINIMIZE)
 
     # Solve the model
     model.optimize()
 
-    # Check if a solution was found
-    if model.status == GRB.OPTIMAL:
-        return model.objVal, [x[0].X, x[1].X]
-    else:
-        return False, None
+    return model.objVal, [x[i].X for i in range(n)]

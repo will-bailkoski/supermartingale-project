@@ -5,7 +5,7 @@ from gurobipy import GRB
 import numpy as np
 
 from functools import partial
-from function_application import e_r_x
+from cascade_functions import e_r_x
 
 def calculate_lipschitz_constant(n, h, C, B, r, W1, W2, B1, B2, domain_bounds, num_points):
 

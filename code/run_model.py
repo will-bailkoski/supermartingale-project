@@ -2,7 +2,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from function_application import transition_kernel
+from cascade_functions import transition_kernel
 
 training_pairs = []
 
@@ -40,7 +40,7 @@ def run_simulation_X(C, r, B, X_initial, time_steps):
     return X
 
 
-from model_params import n, m, time_steps
+from cascade_params import n, m, time_steps
 
 for i in range(500):
     C, D, p, B, V_threshold, X_initial, r = generate_model_params(n, m)

@@ -6,9 +6,13 @@ import matplotlib.pyplot as plt
 from collections import deque
 from sortedcontainers import SortedList
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+import numpy as np
 
 sample_history = []
 ucbs = []
+lcbs = []
 rewards = []
 
 
@@ -53,7 +57,7 @@ class TreeNode:
         if self.count > 0:
             return self.reward_sum / self.count
         else:
-            return 1
+            return 0  # TODO
 
     def is_leaf(self):
         return self.left_child is None and self.right_child is None
@@ -68,30 +72,24 @@ def compute_statistical_error(node: TreeNode, t: int, beta: float) -> float:
     return beta * np.sqrt(4 * np.log(t + 1) / max(1, node.count))
 
 
-def compute_discretization_error(node: TreeNode, alpha: float) -> float:
+def compute_discretisation_error(node: TreeNode, alpha: float) -> float:
     return alpha * node.diameter
 
 
 def split_node(node: TreeNode, n_dims: int) -> tuple[TreeNode, TreeNode]:
     max_dim = max(range(n_dims), key=lambda i: node.bounds[i][1] - node.bounds[i][0])
 
-    if node.integer_domain:
-        mid = (int(node.bounds[max_dim][0]) + int(node.bounds[max_dim][1])) // 2
-    else:
-        mid = (node.bounds[max_dim][0] + node.bounds[max_dim][1]) / 2
+    mid = (node.bounds[max_dim][0] + node.bounds[max_dim][1]) / 2
 
     new_bounds1 = node.bounds.copy()
     new_bounds2 = node.bounds.copy()
 
-    if node.integer_domain:
-        new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
-        new_bounds2[max_dim] = (mid + 1, node.bounds[max_dim][1])
-    else:
-        new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
-        new_bounds2[max_dim] = (mid, node.bounds[max_dim][1])
 
-    node.left_child = TreeNode(new_bounds1, parent=node, integer_domain=node.integer_domain)
-    node.right_child = TreeNode(new_bounds2, parent=node, integer_domain=node.integer_domain)
+    new_bounds1[max_dim] = (node.bounds[max_dim][0], mid)
+    new_bounds2[max_dim] = (mid, node.bounds[max_dim][1])
+
+    node.left_child = TreeNode(new_bounds1, parent=node)
+    node.right_child = TreeNode(new_bounds2, parent=node)
 
     return node.left_child, node.right_child
 
@@ -172,46 +170,99 @@ class Graphs:
 
         return max_depth
 
-    def plot_metrics(self, resolution, root, epsilon, beta, lipschitz, bounds):
+    def plot_metrics(self, title, root, epsilon, beta, lipschitz, bounds):
 
         print("Plotting graph...")
 
         fig, axs = plt.subplots(2, 2, figsize=(15, 15))
 
-        scatter = axs[0, 0].scatter([x[0][0] for x in sample_history], [x[0][1] for x in sample_history], marker='.',
-                                    c=[x[1] for x in sample_history], cmap='viridis')
-        axs[0, 0].set_title('Scatterplot of samples over state space')
-        fig.colorbar(scatter, ax=axs[0, 0], label='MAB reward')
+        fig.suptitle(title, fontsize=20)
 
-        leaf_nodes = self.get_leaf_nodes(root)
-        rectangles = [(x.bounds, (
-            x.count, x.estimated_reward + compute_confidence_interval(x, len(sample_history), beta, lipschitz),
-            lipschitz * x.diameter, (beta * np.sqrt(4 * np.log(len(sample_history) + 1) / max(1, x.count))),
-            x.estimated_reward)) for x in leaf_nodes]
+        # scatter = axs[0, 0].scatter([x[0][0] for x in sample_history], [x[0][1] for x in sample_history], marker='.',
+        #                             c=[x[1] for x in sample_history], cmap='viridis')
+        # axs[0, 0].set_title('Scatterplot of samples over state space')
+        # fig.colorbar(scatter, ax=axs[0, 0], label='MAB reward')
+        #
+        # leaf_nodes = self.get_leaf_nodes(root)
+        # rectangles = [(x.bounds, (
+        #     x.count, x.estimated_reward + compute_confidence_interval(x, len(sample_history), beta, lipschitz),
+        #     lipschitz * x.diameter, (beta * np.sqrt(4 * np.log(len(sample_history) + 1) / max(1, x.count))),
+        #     x.estimated_reward)) for x in leaf_nodes]
 
-        # Loop through the list of rectangles and plot each one
-        i = 0
-        for rect in rectangles:
-            i += 1
-            ((x_min, x_max), (y_min, y_max)), labels = rect
-            width = x_max - x_min
-            height = y_max - y_min
-            axs[0, 1].add_patch(
-                patches.Rectangle(
-                    (x_min, y_min),  # (x, y) position of the bottom left corner
-                    width,  # width of the rectangle
-                    height,  # height of the rectangle
-                    edgecolor='blue',  # outline color
-                    facecolor='none',  # no fill color
-                    linewidth=.5
-                )
-            )
-        # Set the limits of the plot to cover all rectangles
-        axs[0, 1].set_xlim(bounds[0], bounds[1])
-        axs[0, 1].set_ylim(bounds[0], bounds[1])
-        # Set aspect of the plot to be equal to maintain the aspect ratio of rectangles
-        axs[0, 1].set_aspect('equal', adjustable='box')
-        axs[0, 1].set_title('Griding of state space')
+        # states = np.array([x[0] for x in sample_history])  # High-dimensional states
+        # rewards = [x[1] for x in sample_history]  # Rewards
+        #
+        # # Apply PCA to reduce the state space to 2D
+        # pca = PCA(n_components=2)
+        # reduced_states = pca.fit_transform(states)
+        #
+        # # Create the plot
+        # fig, axs = plt.subplots(2, 2, figsize=(15, 15))
+        # fig.suptitle(title, fontsize=20)
+        #
+        # # Scatter plot for PCA-reduced states
+        # scatter = axs[0, 0].scatter(
+        #     reduced_states[:, 0], reduced_states[:, 1],
+        #     marker='.', c=rewards, cmap='viridis'
+        # )
+        # axs[0, 0].set_title('Scatterplot of samples over state space (PCA Reduced)')
+        # axs[0, 0].set_xlabel('Principal Component 1')
+        # axs[0, 0].set_ylabel('Principal Component 2')
+        # fig.colorbar(scatter, ax=axs[0, 0], label='MAB reward')
+
+        # # Visualization of leaf nodes (as in your original code)
+        # leaf_nodes = self.get_leaf_nodes(root)
+        # rectangles = [(x.bounds, (
+        #     x.count, x.estimated_reward + compute_confidence_interval(x, len(sample_history), beta, lipschitz),
+        #     lipschitz * x.diameter, (beta * np.sqrt(4 * np.log(len(sample_history) + 1) / max(1, x.count))),
+        #     x.estimated_reward)) for x in leaf_nodes]
+        #
+        # # Loop through the list of rectangles and plot each one
+        # i = 0
+        # for rect in rectangles:
+        #     i += 1
+        #     ((x_min, x_max), (y_min, y_max)), labels = rect
+        #     width = x_max - x_min
+        #     height = y_max - y_min
+        #     axs[0, 1].add_patch(
+        #         patches.Rectangle(
+        #             (x_min, y_min),  # (x, y) position of the bottom left corner
+        #             width,  # width of the rectangle
+        #             height,  # height of the rectangle
+        #             edgecolor='blue',  # outline color
+        #             facecolor='none',  # no fill color
+        #             linewidth=.5
+        #         )
+        #     )
+        # # Set the limits of the plot to cover all rectangles
+        # axs[0, 1].set_xlim(bounds[0], bounds[1])
+        # axs[0, 1].set_ylim(bounds[0], bounds[1])
+        # # Set aspect of the plot to be equal to maintain the aspect ratio of rectangles
+        # axs[0, 1].set_aspect('equal', adjustable='box')
+        # axs[0, 1].set_title('Griding of state space')
+
+        # rectangle_bounds = [(x.bounds, x) for x in leaf_nodes]  # Store bounds and node info
+        #
+        # # Transform bounds into the PCA-reduced space
+        # projected_rectangles = []
+        # for ((x_min, x_max), (y_min, y_max)), node in rectangle_bounds:
+        #     corners = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]])
+        #     projected_corners = pca.transform(corners)
+        #     x_coords, y_coords = zip(*projected_corners)
+        #     projected_rectangles.append(((min(x_coords), max(x_coords)), (min(y_coords), max(y_coords)), node))
+        #
+        # # Plot projected rectangles
+        # for ((x_min, x_max), (y_min, y_max), node) in projected_rectangles:
+        #     axs[0, 1].add_patch(
+        #         patches.Rectangle(
+        #             (x_min, y_min),
+        #             x_max - x_min,
+        #             y_max - y_min,
+        #             edgecolor='blue',
+        #             facecolor='none',
+        #             linewidth=0.5
+        #         )
+        #     )
 
         axs[1, 0].plot(rewards)
         axs[1, 0].set_title('Estimated Reward of Current Leaf')
@@ -219,7 +270,7 @@ class Graphs:
         axs[1, 0].set_ylabel('Reward')
 
         axs[1, 1].plot(ucbs, label='Max UCB')
-        axs[1, 1].plot([2 * x - y for (x, y) in zip(rewards, ucbs)], label='Min LCB')
+        axs[1, 1].plot(lcbs, label='Corresponding LCB')
         axs[1, 1].plot([epsilon] * len(sample_history), dashes=[4, 4])
         axs[1, 1].plot([-epsilon] * len(sample_history), dashes=[4, 4])
         axs[1, 1].set_title('UCB and LCB')
@@ -227,28 +278,6 @@ class Graphs:
         axs[1, 1].set_ylabel('Reward')
         axs[1, 1].legend()
         # print(self.diameter[45])
-
-        # Extract data for heatmap
-
-        # #print(self.heatmap_data)
-        # x_coords = [p[0][0] for p in self.heatmap_data]
-        # y_coords = [p[0][1] for p in self.heatmap_data]
-        # rewards = [p[1] for p in self.heatmap_data]
-        #
-        # # Create grid
-        # xi = np.linspace(min(x_coords), max(x_coords), resolution)
-        # yi = np.linspace(min(y_coords), max(y_coords), resolution)
-        # xi, yi = np.meshgrid(xi, yi)
-        #
-        # # Interpolate the reward data onto the grid
-        # zi = griddata((x_coords, y_coords), rewards, (xi, yi), method='linear')
-        #
-        #
-        # heatmap = axs[1, 1].contourf(xi, yi, zi, levels=20, cmap="viridis")
-        # #axs[1, 1].set_colorbar(heatmap, label='Estimated Reward')
-        # axs[1, 1].set_title('Heatmap of the Explored Domain')
-        # axs[1, 1].set_xlabel('X coordinate')
-        # axs[1, 1].set_ylabel('Y coordinate')
 
         plt.tight_layout()
         plt.show()
@@ -268,10 +297,11 @@ def mab_algorithm(
     t = 0
     monitor = Graphs()
 
-    # Initial griding and sample
+    # Initial grid
     nodes = SortedList([(root, root.estimated_reward + compute_confidence_interval(root, t, beta, lipschitz))],
                        key=lambda x: x[1])
 
+    # Initial griding to avoid edge cases
     nodes.pop(-1)
     for leaf in split_node(root, n_dims):
         sample = np.array([np.random.uniform(*b) for b in leaf.bounds])
@@ -286,17 +316,20 @@ def mab_algorithm(
         rewards.append(reward)
         t += 1
 
-        ucb = compute_confidence_interval(leaf, t, beta, lipschitz)
+        confidence_interval = compute_confidence_interval(leaf, t, beta, lipschitz)
+        ucb = leaf.estimated_reward + confidence_interval
         ucbs.append(ucb)
 
-        nodes.add((leaf, leaf.estimated_reward + ucb))
+        nodes.add((leaf, ucb))
 
     while t < max_iterations:
 
         if t % 1000 == 0:
             print("iteration: ", t)
+        # if t % 1000000 == 1:
+        #     monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
         if t % 100000 == 1:
-            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
+            print(f"Max UCB: {ucb}      Corresponding LCB: {lcb}")
 
         # Select node with highest UCB
 
@@ -317,28 +350,36 @@ def mab_algorithm(
         rewards.append(reward)
         t += 1
 
+        confidence_interval = compute_confidence_interval(selected_node, t, beta, lipschitz)
+
+        lcb = selected_node.estimated_reward - confidence_interval
+        lcbs.append(lcb)
+
         # monitor.update(root, selected_node, len(sample_history), beta, lipschitz)
 
         # termination conditions
         if ucb <= epsilon:
-            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
-            print(f"Certificate is VALID, iterations: {t}, tree depth: {monitor.depth(root)}")
+            result = "Certificate is VALID"
+            monitor.plot_metrics(result, root, epsilon, beta, lipschitz, initial_bounds[0])
+            print(f"{result}, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
             rewards.clear()
             ucbs.clear()
+            lcbs.clear()
             return True  # Certificate is valid
-        if selected_node.estimated_reward - compute_confidence_interval(selected_node, t, beta,
-                                                                        lipschitz) > -epsilon:
-            monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
-            print(f"Certificate is INVALID, iterations: {t}, tree depth: {monitor.depth(root)}")
+        if lcb > -epsilon:
+            result = "Certificate is INVALID"
+            monitor.plot_metrics(result, root, epsilon, beta, lipschitz, initial_bounds[0])
+            print(f"{result}, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
             rewards.clear()
             ucbs.clear()
+            lcbs.clear()
             return False  # Certificate is invalid
 
         # Split node
         if selected_node.depth < 1000 and compute_statistical_error(selected_node, t,
-                                                                    beta) < compute_discretization_error(selected_node,
+                                                                    beta) < compute_discretisation_error(selected_node,
                                                                                                          lipschitz):
             left, right = split_node(selected_node, n_dims)
             nodes.add((left, left.estimated_reward + compute_confidence_interval(left, t, beta, lipschitz)))
@@ -365,11 +406,12 @@ def mab_algorithm(
 
     # Display the plot
     plt.show()
-    monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
+    monitor.plot_metrics("Did not terminate", root, epsilon, beta, lipschitz, initial_bounds[0])
 
-    print(ucbs[-1], 2 * rewards[-1] - ucbs[-1])
+    print(ucbs[-1], lcbs[-1])
     print(max(rewards))
     sample_history.clear()
     rewards.clear()
     ucbs.clear()
+    lcbs.clear()
     raise ValueError("Maximum iterations reached without conclusion")

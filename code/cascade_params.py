@@ -3,25 +3,27 @@ import numpy as np
 from invariant_set import InvariantBall, check_invariant_set, find_point_in_invariant_set, construct_invariant_set
 from copy import deepcopy
 
-n = 2  # number of players (companies/countries/agents/...)
+n = 4  # number of players (companies/countries/agents/...)
 m = 2  # number of assets
 
 # domain bounds
 max_bound = 30.0
 min_bound = -10.0
 
-max_bound = 30.0
-min_bound = 10.0
+assert min_bound < max_bound, "bounds are incorrectly ordered"
 
 
-def negative_quad_invariant_check(C, r, beta, V_threshold, D, p):  # checks to see if the entire negative quadrant is invariant
-    Cinv = np.linalg.inv(np.eye(len(C)) - C)
+def negative_quad_invariant_check(C, Cinv, r, beta, V_threshold, D, p):  # checks to see if the entire negative quadrant is invariant
 
     check_1 = all(np.dot(Cinv, r - beta) < 0)  # Lemma 3.3, ensure an equilibrium point is in the negative quadrant
     check_2 = not all(np.dot(Cinv, r) < 0)  # Lemma 3.4, ensure the entire plane is not invariant
     check_3 = all(np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p) < beta)  # Theorem 3, ensure the negative quadrant is invariant
 
     return check_1 and check_2 and check_3
+
+
+def is_in_invariant_set(x):
+    return np.all(x < 0)
 
 
 def generate_random_C(n):
@@ -40,16 +42,23 @@ def generate_random_C(n):
         scaling_factors = np.minimum(1, 1 / column_sums)
         C = C * scaling_factors[np.newaxis, :]
 
+
         # Check for nonsingularity (determinant must be non-zero)
-        if np.linalg.det(C) != 0 and np.linalg.det(np.eye(n) - C) != 0:
-            # print(np.linalg.inv(C))
-            # print(np.linalg.inv(np.eye(n) - C))
-            return C
+        cond_threshold = 1e9
+        if np.linalg.det(C) != 0:
+            I_minus_C = np.eye(n) - C
+            if np.linalg.det(I_minus_C) != 0 and np.linalg.cond(I_minus_C) < cond_threshold:
+                return C, np.linalg.inv(I_minus_C)
 
 
-flag = False
+flag = True
+i = 1
 while not flag:
-    C = generate_random_C(n)
+
+    print(f"attempt {i}")
+    i += 1
+    C, Cinv = generate_random_C(n)
+
 
     D = np.random.uniform(0, 0.1, (n, m))
     p = np.array([[10] * m]).T  # paper has the shape incorrect sometimes
@@ -61,9 +70,9 @@ while not flag:
 
     r = np.dot(C - np.eye(len(C)), V_threshold) + np.dot(D, p)
 
-    flag = negative_quad_invariant_check(C, r, beta, V_threshold, D, p)
+    flag = negative_quad_invariant_check(C, Cinv, r, beta, V_threshold, D, p)
 
-
+#print(C)
 
 
 

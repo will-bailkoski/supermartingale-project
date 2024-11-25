@@ -1,10 +1,10 @@
 import numpy as np
-from function_application import v_x, transition_kernel, e_v_p_x
+from cascade_functions import v_x, transition_kernel, e_v_p_x
 from run_model import generate_model_params
 from MAB_algorithm import mab_algorithm
 #from old_mab import mab_algorithm
 
-from model_params import n
+from cascade_params import n
 from functools import partial
 from find_lipschitz import calculate_lipschitz_constant
 

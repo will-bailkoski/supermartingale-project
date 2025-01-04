@@ -1,17 +1,18 @@
 """This function seeks to find the upper-bound for the reward function E[R(x)] = E[V(X')] - V(x) where X' ~ xP"""
 import gurobipy as gp
 from gurobipy import GRB
+from itertools import product
 
 
-def find_reward_bound(bounds, n, h, C, B, r, W1, W2, B1, B2, upper):
+def find_reward_bound(bounds, input_size, layer_sizes, C, B, r, weights, biases, upper):
     model = gp.Model()
     model.setParam(GRB.Param.OutputFlag, 0)
 
     # State variables
     x = model.addVars(
-        n,
-        lb={i: bounds[i][0] for i in range(n)},  # Lower bounds from the list
-        ub={i: bounds[i][1] for i in range(n)},  # Upper bounds from the list
+        input_size,
+        lb={i: bounds[i][0] for i in range(input_size)},
+        ub={i: bounds[i][1] for i in range(input_size)},
         name="X"
     )
 
@@ -20,106 +21,90 @@ def find_reward_bound(bounds, n, h, C, B, r, W1, W2, B1, B2, upper):
     B = B.tolist()
     r = r.T.tolist()[0]
 
-    Cx = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    phi_x = model.addVars(n, vtype=GRB.BINARY)
-    Bphi = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    P_x = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY, name="Px")
+    Cx = model.addVars(input_size, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    phi_x = model.addVars(input_size, vtype=GRB.BINARY)
+    Bphi = model.addVars(input_size, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    P_x = model.addVars(input_size, lb=-GRB.INFINITY, ub=GRB.INFINITY, name="Px")
     M = 1e6
 
-    for i in range(n):
-        model.addConstr(Cx[i] == gp.quicksum(C[i][j] * x[j] for j in range(n)))
+    for i in range(input_size):
+        model.addConstr(Cx[i] == gp.quicksum(C[i][j] * x[j] for j in range(input_size)))
         model.addConstr(x[i] + M * phi_x[i] >= 0)
         model.addConstr(x[i] <= M * (1 - phi_x[i]))
-        model.addConstr(Bphi[i] == gp.quicksum(B[i][j] * phi_x[j] for j in range(n)))
+        model.addConstr(Bphi[i] == gp.quicksum(B[i][j] * phi_x[j] for j in range(input_size)))
         model.addConstr(P_x[i] == Cx[i] + r[i] - Bphi[i])
+
+    # Neural network V(x)
+    activations = [x]
+    for layer_idx in range(len(layer_sizes) - 1):
+        W = weights[layer_idx]
+        b = biases[layer_idx]
+
+        hidden_layer = model.addVars(
+            layer_sizes[layer_idx + 1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
+        relu_layer = model.addVars(
+            layer_sizes[layer_idx + 1], lb=0, ub=GRB.INFINITY)
+
+        for j in range(layer_sizes[layer_idx + 1]):
+            model.addConstr(
+                hidden_layer[j] == gp.quicksum(W[j][i] * activations[-1][i] for i in range(layer_sizes[layer_idx])) + b[j]
+            )
+            model.addConstr(relu_layer[j] == gp.max_(hidden_layer[j], constant=0))
+
+        activations.append(relu_layer)
+
+    V_x = model.addVar(lb=0, ub=GRB.INFINITY, name="V_x")
+    model.addConstr(V_x == gp.max_(activations[-1][0], constant=0))
 
 
     # State noise
+    perturbation_cases = list(product([1.1, 0.9], repeat=input_size))  # All combinations of +/-10% for n dimensions
+    x_tplus1_cases = [
+        model.addVars(input_size, lb=-GRB.INFINITY, ub=GRB.INFINITY, name=f"x_tplus1_case_{case_idx}")
+        for case_idx in range(len(perturbation_cases))
+    ]
 
-    x_tplus1_up_up = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_down_up = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_up_down = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    x_tplus1_down_down = model.addVars(n, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    # Add constraints for each case
+    for case_idx, perturbations in enumerate(perturbation_cases):
+        for i in range(input_size):
+            model.addConstr(x_tplus1_cases[case_idx][i] == perturbations[i] * P_x[i])
 
-    for i in range(n):
-        model.addConstr(x_tplus1_up_up[i] == 1.1 * P_x[i])
-        model.addConstr(x_tplus1_down_down[i] == 0.9 * P_x[i])
+    # Expected neural output of V(P(x))
+    V_Px_cases = []
+    for case_idx, x_tplus1 in enumerate(x_tplus1_cases):
+        activations = [x_tplus1]
+        for layer_idx in range(len(weights)):
+            W = weights[layer_idx]
+            b = biases[layer_idx]
+            layer_size = layer_sizes[layer_idx + 1]
 
-    model.addConstr(x_tplus1_up_down[0] == 1.1 * P_x[0])
-    model.addConstr(x_tplus1_up_down[1] == 0.9 * P_x[1])
-    model.addConstr(x_tplus1_down_up[0] == 0.9 * P_x[0])
-    model.addConstr(x_tplus1_down_up[1] == 1.1 * P_x[1])
+            # Hidden layer and ReLU layer variables
+            hidden_layer = model.addVars(layer_size, lb=-GRB.INFINITY, ub=GRB.INFINITY,
+                                         name=f"hidden_layer_case_{case_idx}_layer_{layer_idx}")
+            relu_layer = model.addVars(layer_size, lb=0, ub=GRB.INFINITY,
+                                       name=f"relu_layer_case_{case_idx}_layer_{layer_idx}")
 
+            for j in range(layer_size):
+                # Hidden layer computation
+                model.addConstr(hidden_layer[j] == gp.quicksum(
+                    W[j][i] * activations[-1][i] for i in range(layer_sizes[layer_idx])) + b[j])
+                # ReLU activation
+                model.addConstr(relu_layer[j] == gp.max_(hidden_layer[j], constant=0))
 
-    # Neural network V(x)
+            # Add ReLU layer as the next layer of activations
+            activations.append(relu_layer)
 
-    W1 = W1.tolist()
-    W2 = W2.tolist()
-    B1 = B1.tolist()
-    B2 = B2.tolist()
-
-    hidden_layer1_x = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_x = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    hidden_layer2_x = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    V_x = model.addVar(lb=0, ub=GRB.INFINITY, name="V_x")
-
-    for j in range(h):
-        model.addConstr(hidden_layer1_x[j] == gp.quicksum(W1[j][i] * x[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_x[j] == gp.max_(hidden_layer1_x[j], constant=0))
-
-    model.addConstr(hidden_layer2_x == gp.quicksum(W2[0][i] * relu_layer_x[i] for i in range(h))+ B2[0])
-    model.addConstr(V_x == gp.max_(hidden_layer2_x, constant=0))
-
-
-    # expected neural output of V(P(x))
-
-    hidden_layer_Px_up_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_up_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_up_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_up_up = model.addVar(lb=0, ub=GRB.INFINITY)
-
-    hidden_layer_Px_down_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_down_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_down_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_down_down = model.addVar(lb=0, ub=GRB.INFINITY)
-
-    hidden_layer_Px_up_down = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_up_down2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_up_down = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_up_down = model.addVar(lb=0, ub=GRB.INFINITY)
-
-    hidden_layer_Px_down_up = model.addVars(h, lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    hidden_layer_Px_down_up2 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    relu_layer_Px_down_up = model.addVars(h, lb=0, ub=GRB.INFINITY)
-    V_Px_down_up = model.addVar(lb=0, ub=GRB.INFINITY)
-
-    for j in range(h):
-        model.addConstr(hidden_layer_Px_up_up[j] == gp.quicksum(W1[j][i] * x_tplus1_up_up[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_up_up[j] == gp.max_(hidden_layer_Px_up_up[j], constant=0))
-        model.addConstr(hidden_layer_Px_down_up[j] == gp.quicksum(W1[j][i] * x_tplus1_down_up[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_down_up[j] == gp.max_(hidden_layer_Px_down_up[j], constant=0))
-        model.addConstr(hidden_layer_Px_up_down[j] == gp.quicksum(W1[j][i] * x_tplus1_up_down[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_up_down[j] == gp.max_(hidden_layer_Px_up_down[j], constant=0))
-        model.addConstr(hidden_layer_Px_down_down[j] == gp.quicksum(W1[j][i] * x_tplus1_down_down[i] for i in range(n)) + B1[j])
-        model.addConstr(relu_layer_Px_down_down[j] == gp.max_(hidden_layer_Px_down_down[j], constant=0))
-
-    model.addConstr(hidden_layer_Px_up_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_up[i] for i in range(h)) + B2[0])
-    model.addConstr(hidden_layer_Px_down_up2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_up[i] for i in range(h)) + B2[0])
-    model.addConstr(hidden_layer_Px_up_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_up_down[i] for i in range(h)) + B2[0])
-    model.addConstr(hidden_layer_Px_down_down2 == gp.quicksum(W2[0][i] * relu_layer_Px_down_down[i] for i in range(h)) + B2[0])
-
-    model.addConstr(V_Px_down_up == gp.max_(hidden_layer_Px_down_up2, constant=0))
-    model.addConstr(V_Px_up_down == gp.max_(hidden_layer_Px_up_down2, constant=0))
-    model.addConstr(V_Px_up_up == gp.max_(hidden_layer_Px_up_up2, constant=0))
-    model.addConstr(V_Px_down_down == gp.max_(hidden_layer_Px_down_down2, constant=0))
-
-    # supermartingale property
+        # Output layer value for this case
+        V_Px = model.addVar(lb=0, ub=GRB.INFINITY, name=f"V_Px_case_{case_idx}")
+        model.addConstr(V_Px == gp.max_(activations[-1][0], constant=0))  # Assuming a single output neuron
+        V_Px_cases.append(V_Px)
 
     maxV_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="maxV_X_tplus1")
-    model.addConstr(maxV_X_tplus1 == gp.max_(V_Px_up_up, V_Px_down_down, V_Px_up_down, V_Px_down_up))
-
     minV_X_tplus1 = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name="minV_X_tplus1")
-    model.addConstr(minV_X_tplus1 == gp.min_(V_Px_up_up, V_Px_down_down, V_Px_up_down, V_Px_down_up))
+
+    # Max and Min constraints
+    model.addConstr(maxV_X_tplus1 == gp.max_(*V_Px_cases))
+    model.addConstr(minV_X_tplus1 == gp.min_(*V_Px_cases))
 
     if upper:
         model.setObjective(maxV_X_tplus1 - V_x, GRB.MAXIMIZE)
@@ -129,4 +114,9 @@ def find_reward_bound(bounds, n, h, C, B, r, W1, W2, B1, B2, upper):
     # Solve the model
     model.optimize()
 
-    return model.objVal, [x[i].X for i in range(n)]
+    import numpy as np
+    np.set_printoptions(threshold=np.inf)
+    print(x_tplus1_cases)
+    print(V_Px_cases)
+
+    return model.objVal, [x[i].X for i in range(input_size)]

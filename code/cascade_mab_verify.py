@@ -7,6 +7,7 @@ from functools import partial
 from autograd import grad
 from cascade_ground_truth import verify_model_milp2
 from cascade_reward_bound import find_reward_bound
+from BlueBEAR_files.verifier_reward_bound import find_reward_bound as find_reward_bound2
 
 import matplotlib.pyplot as plt
 
@@ -76,6 +77,8 @@ def lipschitz_constant_multivariate(f, domain, num_points=5000):
 V = partial(v_x, W1=W1, W2=W2, B1=B1, B2=B2)
 P = partial(transition_kernel, C=C, B=B, r=r)
 R = partial(e_r_x, C=C, B=B, r=r, W1=W1, W2=W2, B1=B1, B2=B2, epsilon=epsilon)
+print(P(np.array([[30.0, -10.0, 30.0, 30.0]]).T))
+exit(0)
 
 # domain = [(0, 23), (0, 1)]
 
@@ -89,6 +92,18 @@ Ub, upper_point = find_reward_bound(n, h, C, B, r,
                                     model_weights['fc1.weight'], model_weights['fc2.weight'],
                                     model_weights['fc1.bias'], model_weights['fc2.bias'], domain,
                                     upper=True)
+
+
+print(find_reward_bound2(domain, n, [4, 16, 1], C, B, r, [model_weights['fc1.weight'], model_weights['fc2.weight']], [model_weights['fc1.bias'], model_weights['fc2.bias']], True))
+print("now_here")
+print(find_reward_bound2(domain, n, [4, 16, 1], C, B, r, [model_weights['fc1.weight'], model_weights['fc2.weight']], [model_weights['fc1.bias'], model_weights['fc2.bias']], False))
+
+
+#(12.551405305543398, [-10.0, 12.02687502038417, 3.561307329436798, 23.071559298450737])
+
+#(-206.32555632504835, [30.0, -10.0, 30.0, 30.0])
+
+
 
 Lb, lower_point = find_reward_bound(n, h, C, B, r,
                                     model_weights['fc1.weight'], model_weights['fc2.weight'],

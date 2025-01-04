@@ -128,5 +128,4 @@ def find_reward_bound(n, h, C, B, r, W1, W2, B1, B2, bounds, upper):
 
     # Solve the model
     model.optimize()
-
     return model.objVal, [x[i].X for i in range(n)]

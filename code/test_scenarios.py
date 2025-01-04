@@ -168,7 +168,7 @@ result = mab_algorithm(
     dynamics=P,
     certificate=V,
     lipschitz=L,
-    beta=abs(up-low),
+    reward_range=abs(up - low),
     max_iterations=500000
 )
 #

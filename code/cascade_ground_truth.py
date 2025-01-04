@@ -106,7 +106,6 @@ def verify_model_milp(n, h, C, B, r, epsilon, W1, W2, B1, B2, domain):
         return False, None
 
 
-
 def verify_model_milp2(n, h, C, B, r, epsilon, W1, W2, B1, B2, domain):
     """A function for validating a CEGIS supermartingale via Gurobi's MILP solver"""
     model = gp.Model("verify_model")
@@ -220,17 +219,6 @@ def verify_model_milp2(n, h, C, B, r, epsilon, W1, W2, B1, B2, domain):
         return True, counterexample
     else:
         return False, None
-
-
-
-
-def max__(x, y):
-    model = gp.Model()
-
-
-
-    model.optimize()
-    return z.X
 
 
 # A function for validating a CEGIS supermartingale via Z3's SAT solver

@@ -114,8 +114,8 @@ result = mab_algorithm(
     dynamics=P,
     certificate=V,
     lipschitz=L,
-    beta=beta,
+    reward_range=beta,
     max_iterations=100000,
-    epsilon=0.5
+    tolerance=0.5
 )
 print(result)

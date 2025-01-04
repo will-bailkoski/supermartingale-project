@@ -46,24 +46,24 @@ def P(xs):
 
 print("Testing valid certificate")
 result_2 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
-                                       dynamics=P,
-                                       certificate=V_is_supermartingale,
-                                       lipschitz=1,
-                                       beta=1,
-                                       max_iterations=params['max_its'],
-                                       epsilon=params['epsilon']
-                                       )
+                         dynamics=P,
+                         certificate=V_is_supermartingale,
+                         lipschitz=1,
+                         reward_range=1,
+                         max_iterations=params['max_its'],
+                         tolerance=params['epsilon']
+                         )
 
 
 print("Testing invalid certificate")
 result_1 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
-                                       dynamics=P,
-                                       certificate=V_not_supermartingale,
-                                       lipschitz=1.76,
-                                       beta=12,
-                                       max_iterations=params['max_its'],
-                                       epsilon=params['epsilon']
-                                       )
+                         dynamics=P,
+                         certificate=V_not_supermartingale,
+                         lipschitz=1.76,
+                         reward_range=12,
+                         max_iterations=params['max_its'],
+                         tolerance=params['epsilon']
+                         )
 
 
 

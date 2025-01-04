@@ -21,7 +21,7 @@ print(mab_algorithm(
     dynamics=P,
     certificate=V,
     lipschitz=10,
-    beta=10,
+    reward_range=10,
     max_iterations=10000,
-    epsilon=0.1
+    tolerance=0.1
 ))

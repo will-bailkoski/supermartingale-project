@@ -223,4 +223,4 @@ def transition_kernel(previous_state, C, B, r):
 
     Cx = np.dot(C, previous_state)
     Bphi = np.dot(B, phi(previous_state))
-    return np.array(Cx + r - Bphi)
+    return np.array(state_noise(Cx + r - Bphi))

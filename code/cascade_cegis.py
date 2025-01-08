@@ -8,11 +8,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import os
 
 from cascade_functions import transition_kernel, v_x, e_r_x
-from cascade_params import n, C, B, r, min_bound, max_bound, is_in_invariant_set
+#from cascade_params import n, C, B, r,
+from cascade_params import min_bound, max_bound, is_in_invariant_set
 from cascade_ground_truth import verify_model_milp2, verify_model_sat
 from visualise import plot_weight_changes, plot_loss_curve
+
+n = 2
+filename = f"BlueBEAR_files/param_examples/n2_m2.npz"
+    # Check if the file exists
+if os.path.exists(filename):
+    print(f"Loading existing example")
+    data = np.load(filename)
+    C = data['C']
+    B = data['B']
+    r = data['r']
 
 results_doc = [(ex, transition_kernel(ex, C, B, r)) for ex in [np.array([np.random.uniform(min_bound, max_bound, n)]).T for _ in range(500)] if not is_in_invariant_set(ex)]
 

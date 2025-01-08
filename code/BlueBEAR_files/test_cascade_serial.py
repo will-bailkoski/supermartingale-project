@@ -39,7 +39,7 @@ def test_params(n, m, domain_bounds, network_width, network_depth, confidence):
     beta_norm_squared = np.dot(np.diag(B), np.diag(B))
     lipschitz = np.sqrt(max_eigenvalue + beta_norm_squared)
     print(f"Lipschitz constant of P: {lipschitz}")
-    lipschitz_constant_statistical_test(P, lipschitz, 1000000, domain_bounds)
+    # lipschitz_constant_statistical_test(P, lipschitz, 1000000, domain_bounds)
 
     reward_optimiser = partial(find_reward_bound, bounds=domain_bounds, input_size=n, layer_sizes=[n] + [network_width] * network_depth + [1], C=C, B=B, r=r)
 

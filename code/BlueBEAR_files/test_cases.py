@@ -2,7 +2,7 @@ param_sets = [
     {
         "n": 2,  # Number of dimensions
         "m": 2,  # Output size
-        "domain_bounds": [(10.0, 20.0)] * 3,  # Bounds for each dimension
+        "domain_bounds": [(10.0, 20.0)] * 2,  # Bounds for each dimension
         "network_width": 32,  # Number of neurons per hidden layer
         "network_depth": 5,  # Number of hidden layers
         "confidence": 0.95  # Confidence level

@@ -115,8 +115,5 @@ def find_reward_bound(bounds, input_size, layer_sizes, C, B, r, weights, biases,
     model.optimize()
 
     import numpy as np
-    np.set_printoptions(threshold=np.inf)
-    print(x_tplus1_cases)
-    print(V_Px_cases)
 
     return model.objVal, [x[i].X for i in range(input_size)]

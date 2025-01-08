@@ -1,4 +1,6 @@
 import pickle
+import time
+
 import numpy as np
 import torch
 from cascade_functions import v_x, transition_kernel, e_r_x
@@ -14,7 +16,7 @@ import matplotlib.pyplot as plt
 torch.set_printoptions(precision=20)
 np.set_printoptions(threshold=20)
 
-n = 4
+n = 3
 
 with open(f"cascade/{n}_players/params.pkl", 'rb') as f:
     params = pickle.load(f)
@@ -36,10 +38,10 @@ h = np.shape(W1)[0]
 
 # import time
 #
-# start = time.time()
-# print(verify_model_milp2(n, h, C, B, r, epsilon, model_weights['fc1.weight'], model_weights['fc2.weight'],
-#                          model_weights['fc1.bias'], model_weights['fc2.bias'], (min_bound, max_bound)))
-# print(start - time.time())
+start = time.process_time()
+print(verify_model_milp2(n, h, C, B, r, epsilon, model_weights['fc1.weight'], model_weights['fc2.weight'],
+                          model_weights['fc1.bias'], model_weights['fc2.bias'], (min_bound, max_bound)))
+print(time.process_time() - start)
 
 
 def lipschitz_constant_multivariate(f, domain, num_points=5000):

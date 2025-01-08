@@ -1,7 +1,7 @@
 """This is the main file that executes Counter-Example Guided Inductive Synthesis (CEGIS) for training the
 supermartingale on the cascade system"""
-import pickle
 import random
+import time
 
 import numpy as np
 from numpy.linalg import svd
@@ -12,7 +12,7 @@ import torch.optim as optim
 
 from functools import partial
 
-from generate_cascade_params import is_in_invariant_set
+from property_tests import is_in_invariant_set
 from MAB_algorithm import mab_algorithm
 
 
@@ -35,12 +35,6 @@ def v_x(x, weights, biases):
     # Forward pass
     activation = x
     for W, B in zip(weights, biases):
-        # Assert shapes match for matrix multiplication
-        assert W.shape[1] == activation.shape[
-            0], f"Weight matrix shape {W.shape} incompatible with activation shape {activation.shape}"
-        assert B.shape[0] == W.shape[0], f"Bias shape {B.shape} incompatible with weight shape {W.shape}"
-        assert B.shape[1] == 1, f"Bias must have shape (n, 1), but has shape {B.shape}"
-
         # Compute layer output
         z = np.dot(W, activation) + B
         activation = np.maximum(0, z)  # ReLU activation
@@ -79,23 +73,37 @@ class SimpleNN(nn.Module):
         return self.network(x)
 
 
-def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschitz_P, network_width, network_depth, confidence, reward_boundary, epsilon = 0.5, learning_rate = 0.01, training_its = 150, verifier_attempts = 2000000):
+def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschitz_P, network_width, network_depth, confidence, reward_boundary, epsilon=0.5, learning_rate=0.01, training_its=150, verifier_attempts=2000000):
     torch.set_printoptions(precision=20)
     np.set_printoptions(threshold=20)
 
+    network_run_times = []
+    network_it_nums = []
+    verifier_run_times = []
+    verifier_it_nums = []
+    verifier_avg_it_times = []
+    verifier_tree_depth = []
+    verifier_regions_nums = []
+    alpha_history = []
+    beta_history = []
+    loss_history = []
+
 
     def sample_within_area(state):
-        og_state = state
+        og_state = [xi.copy() for xi in state]  # Copy the original state to avoid mutating it
         flag = False
-        while not flag:
-            state = og_state
-            for xi in state:
-                new = xi[0] + random.uniform(-0.01, 0.01)
-                if max_bound >= new >= min_bound: #TODO
-                    xi[0] = new
-            flag = not is_in_invariant_set(state)
-        return state
 
+        while not flag:
+            state = [xi.copy() for xi in og_state]  # Reset state to original
+            for i, xi in enumerate(state):
+                # Use the bounds for the i-th dimension
+                min_bound, max_bound = domain_bounds[i]
+                new = xi[0] + random.uniform(-0.01, 0.01)
+                if min_bound <= new <= max_bound:  # Check if new value is within the bounds
+                    xi[0] = new
+            flag = not is_in_invariant_set(state)  # Ensure state is outside the invariant set
+
+        return state
 
     # Define total loss with range punishment
     def total_loss(V_x, E_V_x_prime, lambda_):
@@ -120,20 +128,12 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
     X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float64).squeeze(-1)
 
 
-    weight_history = {'fc1': [], 'fc2': []}
-    loss_history = []
-    sat_history = []
+    #weight_history = {'fc1': [], 'fc2': []}
 
     # Training and verification loop
     for iteration in range(verifier_attempts):
         print(f"Training iteration {iteration + 1}")
-        #
-        # if iteration % 50 == 0:
-        #     loss_history = []
-        #     sat_history = []
-        #     weight_history = {'fc1': [], 'fc2': []}
-
-
+        network_start_time = time.process_time()
         # Training loop
         model.train()
         epoch = 0
@@ -152,26 +152,26 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
 
             if epoch % 50 == 0:
                 print(f'Epoch [{epoch}/{training_its}], Loss: {loss.item()}')
-            weight_history['fc1'].append(model.fc1.weight.detach().mean(dim=1).numpy())
-            weight_history['fc2'].append(model.fc2.weight.detach().mean(dim=1).numpy())
             loss_history.append(loss.item())
             condition = E_V_x_prime - V_x + epsilon
             satisfied = torch.mean((condition <= 0).float()).item()
-            sat_history.append(satisfied)
 
             epoch += 1
             if satisfied == 1:
-                epoch = training_its + 100
+                print(f'Epoch [{epoch}/{training_its}], Loss: {loss.item()}')
+                break
 
         # Verification
+        network_run_times.append(network_start_time - time.process_time())
+        network_it_nums.append(epoch)
         model.eval()
-        print(f'Final Loss: {loss.item()}')
-        print(f"Condition satisfaction rate: {satisfied:.2%}")
+        #print(f'Final Loss: {loss.item()}')
+        #print(f"Condition satisfaction rate: {satisfied:.2%}")
 
         with torch.no_grad():
 
-            L = 1  # overestimation of the lipschitz constant
-
+            # overestimation of the lipschitz constant
+            L = 1
             model_weights = {}
             for name, param in model.named_parameters():
                 if param.requires_grad:
@@ -181,36 +181,56 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
                         spectral_norm = np.max(singular_values)
                         L *= spectral_norm
 
-            V = partial(v_x, weights=[model_weights[f'fc{i+1}.weight'] for i in range(network_depth)],
-                             biases=[model_weights[f'fc{i+1}.bias'] for i in range(network_depth)])
+            print(model_weights.keys())
 
-            ub, max_point = reward_boundary([model_weights[f'fc{i+1}.weight'] for i in range(network_depth)],
-                                            [model_weights[f'fc{i+1}.bias'] for i in range(network_depth)],
+            V = partial(v_x, weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
+                        biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)])
+
+            # import inspect
+            # # Get the signature of the function
+            # signature = inspect.signature(reward_boundary)
+            #
+            # # Print the signature
+            # print("Expected arguments:", signature)
+
+            ub, max_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
+                                            biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
                                             upper=True)
 
-            lb, min_point = reward_boundary([model_weights[f'fc{i+1}.weight'] for i in range(network_depth)],
-                                            [model_weights[f'fc{i+1}.bias'] for i in range(network_depth)],
+            lb, min_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
+                                            biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
                                             upper=False)
 
-
-            is_sat, counter_example = mab_algorithm(
+            verify_start_time = time.time()
+            is_sat, counter_example, its, avg_time, tree_depth, num_regions = mab_algorithm(
                 initial_bounds=domain_bounds,
                 dynamics=transition_kernel,
                 certificate=V,
-                lipschitz=L,
+                lipschitz=L * lipschitz_P + L,
                 reward_range=abs(ub - lb),
-                max_iterations=10000000000,
+                max_iterations=1000000000,
                 tolerance=epsilon * 0.5,
                 confidence=confidence
             )
+            time.sleep(0.6)
+            verifier_run_times.append(verify_start_time - time.time())
+            verifier_it_nums.append(its)
+            verifier_avg_it_times.append(avg_time)
+            verifier_tree_depth.append(tree_depth)
+            verifier_regions_nums.append(num_regions)
+            alpha_history.append(L * lipschitz_P + L)
+            beta_history.append(abs(ub - lb))
+
         if is_sat:
             break
         else:
-            counter_examples = np.array([sample_within_area(np.array([counter_example]).T) for _ in range(10)])
+            #counter_examples = np.array([sample_within_area(np.array([counter_example]).T) for _ in range(10)])
             X = torch.cat([X, torch.tensor([counter_example], dtype=torch.float64)])
             X_prime_new = torch.stack([torch.tensor(transition_kernel(np.array([counter_example]).T), dtype=torch.float64)])
             X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
 
     if iteration == verifier_attempts - 1:
         print("Max iterations reached. Model could not be verified.")
-        return
+        return False, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights
+    else:
+        return True, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights

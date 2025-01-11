@@ -19,6 +19,9 @@ def lipschitz_constant_statistical_test(P, calculated_val, num_samples, bounds):
 
         # Compute the outputs and the ratio
         f1, f2 = P(x1), P(x2)
+
+
+
         norm_diff_outputs = np.linalg.norm(f1 - f2)
         norm_diff_inputs = np.linalg.norm(x1 - x2)
 
@@ -26,6 +29,7 @@ def lipschitz_constant_statistical_test(P, calculated_val, num_samples, bounds):
         if norm_diff_inputs > 1e-10:
             ratio = norm_diff_outputs / norm_diff_inputs
             max_ratio = max(max_ratio, ratio)
+            print(max_ratio)
             # Collect data for plotting
             points.append((x1[0], x1[1]))  # Use the first point for scatter
             gradient_norms.append(ratio)

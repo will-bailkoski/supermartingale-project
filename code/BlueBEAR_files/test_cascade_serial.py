@@ -34,10 +34,12 @@ def test_params(n, m, domain_bounds, network_width, network_depth, confidence):
     P = partial(transition_kernel, C=C, B=B, r=r)
     print(f"Successfully found valid parameters")
 
-    # Lipschitz constant calculations TODO: consider stochastic element of P
+    # Lipschitz constant calculations
     max_eigenvalue = np.max(np.linalg.eigvals(np.dot(C, C)).real)
     beta_norm_squared = np.dot(np.diag(B), np.diag(B))
-    lipschitz = np.sqrt(max_eigenvalue + beta_norm_squared)
+    deterministic_L = np.sqrt(max_eigenvalue + beta_norm_squared)
+    stochastic_L = 0  # TODO: consider stochastic element of P
+    lipschitz = deterministic_L + stochastic_L
     print(f"Lipschitz constant of P: {lipschitz}")
     # lipschitz_constant_statistical_test(P, lipschitz, 1000000, domain_bounds)
 
@@ -46,6 +48,7 @@ def test_params(n, m, domain_bounds, network_width, network_depth, confidence):
     print("Looking for certificate")
     print(f"with parameters: n={n}, m={m}, domain_bounds={domain_bounds}, network_width={network_width}, network_depth={network_depth}, confidence={confidence}")
     start_time = time.process_time()
+    return {'num': 1}
     success, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights = find_supermartingale(domain_bounds, n, P, lipschitz, network_width, network_depth, confidence, reward_optimiser)
     end_time = time.process_time()
     print("validated supermartingale")

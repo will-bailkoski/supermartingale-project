@@ -38,8 +38,8 @@ def generate_parameters(n, m):
     p = p / np.max(p)  # Normalize while keeping non-null
 
     # Generate positive beta vector
-    beta = np.random.rand(n) + 0.1  # Adding 0.1 to avoid zero
-
+    b = np.random.rand() + 0.1  # Adding 0.1 to avoid zero
+    beta = np.array([b] * n)
     # Generate v_threshold with positive components
     v_threshold = np.abs(np.random.rand(n)) + 0.1
 
@@ -87,7 +87,7 @@ def check_conditions(C, D, p, beta, v_threshold):
         return False
 
 
-def smart_search(n, m, max_attempts=10000000):
+def smart_search(n, m, max_attempts=100000000):
     """Search for valid parameters with intelligent constraints"""
     for attempt in range(max_attempts):
         # Generate parameters
@@ -174,7 +174,7 @@ def find_and_save_example(n, m, directory="param_examples"):
     if result is not None:
         C, D, p, beta, v_threshold = result
         verify_solution(C, D, p, beta, v_threshold)
-        #print_parameters(C, D, p, beta, v_threshold)
+        print_parameters(C, D, p, beta, v_threshold)
         p = np.array([p]).T
         v_threshold = np.array([v_threshold]).T
         B = np.diag(beta)
@@ -201,13 +201,15 @@ def phi(v_vbar):
     return indicator
 
 
+import random
+
 # Stochasticity
 def state_noise(state):
     noise_dict = {}
     for k in range(len(state)):
-        noise_dict[str(k)] = (state[k] * 0.9, state[k] * 1.1)
+        noise_dict[str(k)] = (state[k] * -0.1, state[k] * 0.1)
 
-    return list(product(*noise_dict.values()))
+    return random.choice(list(product(*noise_dict.values())))
 
 def transition_kernel(previous_state, C, B, r):
     # returns list of possible states
@@ -223,4 +225,9 @@ def transition_kernel(previous_state, C, B, r):
 
     Cx = np.dot(C, previous_state)
     Bphi = np.dot(B, phi(previous_state))
-    return np.array(state_noise(Cx + r - Bphi))
+    #print(previous_state)
+    noise = random.choice(state_noise(previous_state))
+    #print(noise)
+    #return random.choice(np.array(state_noise(Cx + r - Bphi)))
+    #return Cx + r - Bphi + noise
+    return noise

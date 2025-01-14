@@ -14,6 +14,7 @@ from functools import partial
 
 from property_tests import is_in_invariant_set
 from MAB_algorithm import mab_algorithm
+import matplotlib.pyplot as plt
 
 
 def v_x(x, weights, biases):
@@ -73,20 +74,27 @@ class SimpleNN(nn.Module):
         return self.network(x)
 
 
-def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschitz_P, network_width, network_depth, confidence, reward_boundary, epsilon=0.5, learning_rate=0.01, training_its=150, verifier_attempts=2000000):
+def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschitz_P, network_width, network_depth, confidence, kappa, reward_boundary, epsilon=5, learning_rate=0.01, training_its=1000, verifier_attempts=2000000):
     torch.set_printoptions(precision=20)
     np.set_printoptions(threshold=20)
 
+    # Data worth tracking
+    # NN
     network_run_times = []
     network_it_nums = []
+    task_losses = []
+    regulariser_losses = []
+    total_losses = []
+    satisfaction_history = []
+
+    # MAB
     verifier_run_times = []
     verifier_it_nums = []
     verifier_avg_it_times = []
     verifier_tree_depth = []
     verifier_regions_nums = []
     alpha_history = []
-    beta_history = []
-    loss_history = []
+
 
 
     def sample_within_area(state):
@@ -106,15 +114,20 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
         return state
 
     # Define total loss with range punishment
-    def total_loss(V_x, E_V_x_prime, lambda_):
+    def total_loss(V_x, E_V_x_prime, lambda_, model):
         # Original task loss
         task_loss = torch.sum(F.relu(E_V_x_prime - V_x + epsilon))
 
-        # Compute range penalty for V_x (current outputs)
-        range_loss = 0  #TODO
+        # Compute spectral norm regularization term
+        spectral_norm_penalty = 1
+        for name, param in model.named_parameters():
+            if param.requires_grad and len(param.shape) == 2:  # Only consider weight matrices
+                _, singular_values, _ = svd(param.detach().cpu().numpy(), full_matrices=False)
+                spectral_norm_penalty *= np.max(singular_values)
 
-        # Combine task loss and range penalty
-        return task_loss + lambda_ * range_loss
+        # Combine task loss and spectral norm penalty
+        total_loss_value = task_loss + lambda_ * spectral_norm_penalty
+        return total_loss_value, task_loss.item(), lambda_ * spectral_norm_penalty
 
     # Initialize the neural network
     model = SimpleNN(input_size=num_players, width=network_width, output_size=1, depth=network_depth)
@@ -128,8 +141,6 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
     X_prime = torch.tensor(np.array([i[1] for i in results_doc]), dtype=torch.float64).squeeze(-1)
 
 
-    #weight_history = {'fc1': [], 'fc2': []}
-
     # Training and verification loop
     for iteration in range(verifier_attempts):
         print(f"Training iteration {iteration + 1}")
@@ -137,14 +148,14 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
         # Training loop
         model.train()
         epoch = 0
-        regulariser_strength = 0 #TODO
+        regulariser_strength = 0.5
         while epoch < training_its:
             V_x = model(X)
             V_x_prime = torch.stack([model(i) for i in X_prime])
             E_V_x_prime = torch.mean(V_x_prime, dim=1)
 
             # Use the new total loss function with range penalty
-            loss = total_loss(V_x, E_V_x_prime, regulariser_strength)
+            loss, task_loss, reg_loss = total_loss(V_x, E_V_x_prime, regulariser_strength, model)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -152,9 +163,12 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
 
             if epoch % 50 == 0:
                 print(f'Epoch [{epoch}/{training_its}], Loss: {loss.item()}')
-            loss_history.append(loss.item())
+            task_losses.append(task_loss)
+            regulariser_losses.append(reg_loss)
+            total_losses.append(loss.item())
             condition = E_V_x_prime - V_x + epsilon
             satisfied = torch.mean((condition <= 0).float()).item()
+            satisfaction_history.append(satisfied)
 
             epoch += 1
             if satisfied == 1:
@@ -165,8 +179,19 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
         network_run_times.append(network_start_time - time.process_time())
         network_it_nums.append(epoch)
         model.eval()
-        #print(f'Final Loss: {loss.item()}')
-        #print(f"Condition satisfaction rate: {satisfied:.2%}")
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(task_losses, label='Task Loss')
+        plt.plot(regulariser_losses, label='Regulariser Loss')
+        plt.plot(total_losses, label='Total Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Loss Components over Epochs')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+
 
         with torch.no_grad():
 
@@ -181,45 +206,37 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
                         spectral_norm = np.max(singular_values)
                         L *= spectral_norm
 
-            print(model_weights.keys())
+            #print(model_weights.keys())
+            weights = [model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)]
+            biases = [model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)]
+            V = partial(v_x, weights=weights, biases=biases)
 
-            V = partial(v_x, weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
-                        biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)])
+            print(L * lipschitz_P)
 
-            # import inspect
-            # # Get the signature of the function
-            # signature = inspect.signature(reward_boundary)
+            # ub, max_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
+            #                                 biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
+            #                                 upper=True)
             #
-            # # Print the signature
-            # print("Expected arguments:", signature)
-
-            ub, max_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
-                                            biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
-                                            upper=True)
-
-            lb, min_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
-                                            biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
-                                            upper=False)
+            # lb, min_point = reward_boundary(weights=[model_weights[f'network.{i*2}.weight'] for i in range(network_depth + 1)],
+            #                                 biases=[model_weights[f'network.{i*2}.bias'] for i in range(network_depth + 1)],
+            #                                 upper=False)
 
             verify_start_time = time.time()
             is_sat, counter_example, its, avg_time, tree_depth, num_regions = mab_algorithm(
                 initial_bounds=domain_bounds,
                 dynamics=transition_kernel,
                 certificate=V,
-                lipschitz=L * lipschitz_P + L,
-                reward_range=abs(ub - lb),
-                max_iterations=1000000000,
-                tolerance=epsilon * 0.5,
-                confidence=confidence
+                lipschitz_values=(L * lipschitz_P, L),
+                tolerance=epsilon,
+                confidence=confidence,
+                kappa=kappa
             )
-            time.sleep(0.6)
             verifier_run_times.append(verify_start_time - time.time())
             verifier_it_nums.append(its)
             verifier_avg_it_times.append(avg_time)
             verifier_tree_depth.append(tree_depth)
             verifier_regions_nums.append(num_regions)
             alpha_history.append(L * lipschitz_P + L)
-            beta_history.append(abs(ub - lb))
 
         if is_sat:
             break
@@ -231,6 +248,6 @@ def find_supermartingale(domain_bounds, num_players, transition_kernel, lipschit
 
     if iteration == verifier_attempts - 1:
         print("Max iterations reached. Model could not be verified.")
-        return False, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights
+        return False, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, total_losses, model_weights
     else:
-        return True, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights
+        return True, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, total_losses, model_weights

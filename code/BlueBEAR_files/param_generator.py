@@ -200,18 +200,15 @@ def phi(v_vbar):
             indicator.append([0])
     return indicator
 
-
-import random
-
 # Stochasticity
-def state_noise(state):
+def state_noise(state, kappa):
     noise_dict = {}
     for k in range(len(state)):
-        noise_dict[str(k)] = (state[k] * -0.1, state[k] * 0.1)
+        noise_dict[str(k)] = (state[k] * -kappa, state[k] * kappa)
 
-    return random.choice(list(product(*noise_dict.values())))
+    return list(product(*noise_dict.values()))
 
-def transition_kernel(previous_state, C, B, r):
+def transition_kernel(previous_state, C, B, r, kappa):
     # returns list of possible states
     n = len(previous_state)
     assert previous_state.shape == (n, 1), \
@@ -223,11 +220,7 @@ def transition_kernel(previous_state, C, B, r):
     assert r.shape == (n, 1), \
         f"Input x must have shape ({n}, 1), but has shape {r.shape}"
 
-    Cx = np.dot(C, previous_state)
-    Bphi = np.dot(B, phi(previous_state))
-    #print(previous_state)
-    noise = random.choice(state_noise(previous_state))
-    #print(noise)
-    #return random.choice(np.array(state_noise(Cx + r - Bphi)))
-    #return Cx + r - Bphi + noise
-    return noise
+    deterministic = np.dot(C, previous_state) + r - np.dot(B, phi(previous_state))
+    noise = state_noise(previous_state, kappa)
+    successors = np.array([i + deterministic for i in noise])
+    return successors

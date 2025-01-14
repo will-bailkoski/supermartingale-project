@@ -16,7 +16,7 @@ from property_tests import lipschitz_constant_statistical_test
 
 
 
-def test_params(n, m, domain_bounds, network_width, network_depth, confidence):
+def test_params(n, m, kappa, domain_bounds, network_width, network_depth, confidence):
     #asserts?
 
     filename = f"param_examples/n{n}_m{m}.npz"
@@ -31,25 +31,22 @@ def test_params(n, m, domain_bounds, network_width, network_depth, confidence):
         print(f"Generating new example for n={n}, m={m}")
         C, D, p, B, v_threshold, r = find_and_save_example(n, m)
 
-    P = partial(transition_kernel, C=C, B=B, r=r)
+    P = partial(transition_kernel, C=C, B=B, r=r, kappa=kappa)
     print(f"Successfully found valid parameters")
 
     # Lipschitz constant calculations
     max_eigenvalue = np.max(np.linalg.eigvals(np.dot(C, C)).real)
     beta_norm_squared = np.dot(np.diag(B), np.diag(B))
     deterministic_L = np.sqrt(max_eigenvalue + beta_norm_squared)
-    stochastic_L = 0  # TODO: consider stochastic element of P
-    lipschitz = deterministic_L + stochastic_L
-    print(f"Lipschitz constant of P: {lipschitz}")
-    # lipschitz_constant_statistical_test(P, lipschitz, 1000000, domain_bounds)
+    lipschitz = np.sqrt(n) * (deterministic_L + kappa) + 1
+    print(f"Lipschitz constant without NN: {lipschitz}")
 
     reward_optimiser = partial(find_reward_bound, bounds=domain_bounds, input_size=n, layer_sizes=[n] + [network_width] * network_depth + [1], C=C, B=B, r=r)
 
     print("Looking for certificate")
     print(f"with parameters: n={n}, m={m}, domain_bounds={domain_bounds}, network_width={network_width}, network_depth={network_depth}, confidence={confidence}")
     start_time = time.process_time()
-    return {'num': 1}
-    success, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights = find_supermartingale(domain_bounds, n, P, lipschitz, network_width, network_depth, confidence, reward_optimiser)
+    success, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights = find_supermartingale(domain_bounds, n, P, lipschitz, network_width, network_depth, confidence, kappa, reward_optimiser)
     end_time = time.process_time()
     print("validated supermartingale")
 

@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 torch.set_printoptions(precision=20)
 np.set_printoptions(threshold=20)
 
-n = 3
+n = 2
 
 with open(f"cascade/{n}_players/params.pkl", 'rb') as f:
     params = pickle.load(f)
@@ -79,8 +79,8 @@ def lipschitz_constant_multivariate(f, domain, num_points=5000):
 V = partial(v_x, W1=W1, W2=W2, B1=B1, B2=B2)
 P = partial(transition_kernel, C=C, B=B, r=r)
 R = partial(e_r_x, C=C, B=B, r=r, W1=W1, W2=W2, B1=B1, B2=B2, epsilon=epsilon)
-print(P(np.array([[30.0, -10.0, 30.0, 30.0]]).T))
-exit(0)
+#print(P(np.array([[30.0, -10.0, 30.0, 30.0]]).T))
+#exit(0)
 
 # domain = [(0, 23), (0, 1)]
 

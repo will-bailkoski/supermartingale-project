@@ -10,11 +10,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 import os
 
+from numpy.linalg import svd
+
 from cascade_functions import transition_kernel, v_x, e_r_x
-#from cascade_params import n, C, B, r,
+#from cascade_params import n, C, B, r
 from cascade_params import min_bound, max_bound, is_in_invariant_set
 from cascade_ground_truth import verify_model_milp2, verify_model_sat
 from visualise import plot_weight_changes, plot_loss_curve
+
+
 
 n = 2
 filename = f"BlueBEAR_files/param_examples/n2_m2.npz"
@@ -28,7 +32,7 @@ if os.path.exists(filename):
 
 results_doc = [(ex, transition_kernel(ex, C, B, r)) for ex in [np.array([np.random.uniform(min_bound, max_bound, n)]).T for _ in range(500)] if not is_in_invariant_set(ex)]
 
-print(results_doc[120], results_doc[5], results_doc[12], results_doc[50])
+#print(results_doc[120], results_doc[5], results_doc[12], results_doc[50])
 
 
 torch.set_printoptions(precision=20)
@@ -80,9 +84,9 @@ def total_loss(V_x, E_V_x_prime, epsilon, lambda_range=0.1):
 
 
 input_size = n
-hidden_size = 16
+hidden_size = 8
 output_size = 1
-epsilon = 0.5
+epsilon = 0.1
 learning_rate = 0.01
 num_epochs = 150
 max_iterations = 2000000
@@ -168,7 +172,7 @@ for iteration in range(max_iterations):
     else:
         print(f"Verification failed. Retraining with counter-example: {counter_example}")
 
-        counter_examples = np.array([sample_within_area(np.array([counter_example]).T) for _ in range(10)])
+        counter_examples = np.array([sample_within_area(np.array([counter_example]).T) for _ in range(50)])
         # Add counter-example to training data
         #print(torch.tensor(counter_examples, dtype=torch.float64).squeeze(-1))
         #print(torch.tensor(counter_example, dtype=torch.float64))
@@ -180,14 +184,42 @@ for iteration in range(max_iterations):
         X_prime_new = torch.stack([torch.tensor(transition_kernel(np.array([counter_example]).T, C, B, r), dtype=torch.float64)])
         X_prime = torch.cat([X_prime, X_prime_new.squeeze(-1)])
 
-    if iteration % 10 == 0 or iteration == 3:
+    if iteration % 25 == 0 or iteration == 3 or iteration == 6:
         plot_weight_changes(weight_history)
         plot_loss_curve(loss_history, sat_history)
+
+        model_weights = {}
+        L = 1
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                model_weights[name] = param.data.numpy()
+                if len(param.shape) == 2:  # Check if it is a weight matrix (not a bias vector)
+                    _, singular_values, _ = svd(param.detach(), full_matrices=False)
+                    spectral_norm = np.max(singular_values)
+                    L *= spectral_norm
+
+        with open(f"cascade/{n}_players/{not is_sat}_{iteration}.pkl", 'wb') as f:
+            pickle.dump({'model_weights': model_weights, 'lipschitz': L}, f)
 
 if iteration == max_iterations - 1:
     print("Max iterations reached. Model could not be verified.")
 
 if not is_sat:
+    model_weights = {}
+    L = 1
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            model_weights[name] = param.data.numpy()
+            if len(param.shape) == 2:  # Check if it is a weight matrix (not a bias vector)
+                _, singular_values, _ = svd(param.detach(), full_matrices=False)
+                spectral_norm = np.max(singular_values)
+                L *= spectral_norm
+
+    with open(f"cascade/{n}_players/{not is_sat}_{iteration}.pkl", 'wb') as f:
+        pickle.dump({'model_weights': model_weights, 'lipschitz': L}, f)
+
+    print(L)
+    print(model_weights)
 
     params = {
         'bounds': (min_bound, max_bound),

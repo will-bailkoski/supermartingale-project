@@ -37,7 +37,6 @@ def v_x(x, W1, W2, B1, B2):
 
 
 # Transition kernel
-
 # Failure function
 def phi(v_vbar):
     indicator = []
@@ -50,10 +49,10 @@ def phi(v_vbar):
 
 
 # Stochasticity
-def state_noise(state):
+def state_noise(state, kappa):
     noise_dict = {}
     for k in range(len(state)):
-        noise_dict[str(k)] = (state[k] * 0.9, state[k] * 1.1)
+        noise_dict[str(k)] = (state[k] * -kappa, state[k] * kappa)
 
     return list(product(*noise_dict.values()))
 
@@ -71,8 +70,9 @@ def transition_kernel(previous_state, C, B, r):
     assert r.shape == (n, 1), \
         f"Input x must have shape ({n}, 1), but has shape {r.shape}"
 
-    Cx = np.dot(C, previous_state)
-    Bphi = np.dot(B, phi(previous_state))
-    return np.array(state_noise(Cx + r - Bphi))  # add noise
+    deterministic = np.dot(C, previous_state) + r - np.dot(B, phi(previous_state))
+    noise = state_noise(previous_state, 0.1)
+    successors = np.array([i + deterministic for i in noise])
+    return successors
 
 

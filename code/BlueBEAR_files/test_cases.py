@@ -1,8 +1,26 @@
 param_sets = [
+    # {
+    #     "n": 2,  # Number of dimensions
+    #     "m": 2,  # Output size
+    #     "domain_bounds": [(0.0, 20.0)] * 2,  # Bounds for each dimension
+    #     "network_width": 32,  # Number of neurons per hidden layer
+    #     "network_depth": 5,  # Number of hidden layers
+    #     "confidence": 0.95,  # Confidence level
+    #     "kappa": 0.1  # Distortion
+    # },
     {
-        "n": 2,  # Number of dimensions
+        "n": 5,  # Number of dimensions
         "m": 2,  # Output size
-        "domain_bounds": [(-20.0, 20.0)] * 2,  # Bounds for each dimension
+        "domain_bounds": [(10.0, 20.0)] * 5,  # Bounds for each dimension
+        "network_width": 32,  # Number of neurons per hidden layer
+        "network_depth": 5,  # Number of hidden layers
+        "confidence": 0.95,  # Confidence level
+        "kappa": 0.1  # Distortion
+    },
+    {
+        "n": 8,  # Number of dimensions
+        "m": 2,  # Output size
+        "domain_bounds": [(10.0, 20.0)] * 8,  # Bounds for each dimension
         "network_width": 32,  # Number of neurons per hidden layer
         "network_depth": 5,  # Number of hidden layers
         "confidence": 0.95,  # Confidence level
@@ -35,24 +53,7 @@ param_sets = [
         "confidence": 0.95,  # Confidence level
         "kappa": 0.1  # Distortion
     },
-    {
-        "n": 5,  # Number of dimensions
-        "m": 2,  # Output size
-        "domain_bounds": [(10.0, 20.0)] * 5,  # Bounds for each dimension
-        "network_width": 32,  # Number of neurons per hidden layer
-        "network_depth": 5,  # Number of hidden layers
-        "confidence": 0.95,  # Confidence level
-        "kappa": 0.1  # Distortion
-    },
-    {
-        "n": 8,  # Number of dimensions
-        "m": 2,  # Output size
-        "domain_bounds": [(10.0, 20.0)] * 8,  # Bounds for each dimension
-        "network_width": 32,  # Number of neurons per hidden layer
-        "network_depth": 5,  # Number of hidden layers
-        "confidence": 0.95,  # Confidence level
-        "kappa": 0.1  # Distortion
-    },
+
 {
         "n": 12,  # Number of dimensions
         "m": 2,  # Output size

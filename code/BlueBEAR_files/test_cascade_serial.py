@@ -40,13 +40,14 @@ def test_params(n, m, kappa, domain_bounds, network_width, network_depth, confid
     deterministic_L = np.sqrt(max_eigenvalue + beta_norm_squared)
     lipschitz = np.sqrt(n) * (deterministic_L + kappa) + 1
     print(f"Lipschitz constant without NN: {lipschitz}")
+    #lipschitz_constant_statistical_test(P, lipschitz, domain_bounds)
 
     reward_optimiser = partial(find_reward_bound, bounds=domain_bounds, input_size=n, layer_sizes=[n] + [network_width] * network_depth + [1], C=C, B=B, r=r)
 
     print("Looking for certificate")
     print(f"with parameters: n={n}, m={m}, domain_bounds={domain_bounds}, network_width={network_width}, network_depth={network_depth}, confidence={confidence}")
     start_time = time.process_time()
-    success, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, beta_history, loss_history, model_weights = find_supermartingale(domain_bounds, n, P, lipschitz, network_width, network_depth, confidence, kappa, reward_optimiser)
+    success, network_run_times, network_it_nums, verifier_run_times, verifier_it_nums, verifier_avg_it_times, verifier_tree_depth, verifier_regions_nums, alpha_history, loss_history, model_weights = find_supermartingale(domain_bounds, n, P, lipschitz, network_width, network_depth, confidence, kappa, reward_optimiser)
     end_time = time.process_time()
     print("validated supermartingale")
 
@@ -68,7 +69,6 @@ def test_params(n, m, kappa, domain_bounds, network_width, network_depth, confid
     "verifier_tree_depth": verifier_tree_depth,
     "verifier_number_of_regions": verifier_regions_nums,
     "lipschitz_history": alpha_history,
-    "reward_range_history": beta_history,
     "network_loss_history": loss_history}
 
     # params = {

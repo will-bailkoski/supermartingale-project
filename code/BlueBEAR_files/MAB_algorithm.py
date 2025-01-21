@@ -8,6 +8,7 @@ from collections import deque
 from sortedcontainers import SortedList
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from sklearn.decomposition import PCA
 import time
 
@@ -162,11 +163,13 @@ class Graphs:
 
         return max_depth
 
-    def plot_metrics(self, root: TreeNode, tolerance: float):
+    def plot_metrics(self, root: TreeNode, nodes: SortedList[TreeNode]):
         print("Plotting graph...")
         fig, axs = plt.subplots(2, 2, figsize=(15, 15))
 
         bounds = root.bounds
+        if len(bounds) != 2:
+            return
 
         # Scatter plot of samples
         scatter = axs[0, 0].scatter(
@@ -179,29 +182,32 @@ class Graphs:
         axs[0, 0].set_xlim(root.bounds[0][0], root.bounds[0][1])
         axs[0, 0].set_ylim(root.bounds[1][0], bounds[1][1])
 
-        leaf_nodes = self.get_leaf_nodes(root)
-        rectangles = tuple(x.bounds for x in leaf_nodes)
+        leaf_nodes = [(node, tuple(node.bounds), ucb) for node, ucb in nodes if node.is_leaf()]
 
         # Loop through the list of rectangles and plot each one
-        for i, rect in enumerate(rectangles, start=1):
-            # Ensure the rect is in the expected format
-            rect = (rect, i)
-            if not isinstance(rect, tuple) or len(rect) != 2:
-                raise ValueError(f"Unexpected format for rect at index {i}: {rect}")
-
+        for rect in leaf_nodes:
             # Unpack bounds and labels
-            ((x_min, x_max), (y_min, y_max)), labels = rect
+            node, ((x_min, x_max), (y_min, y_max)), val = rect
             width = x_max - x_min
             height = y_max - y_min
+
+            lcb = 2 * node.estimated_reward - val
+
+            if val <= 0:  # Verified (green)
+                color = "yellow"
+            elif lcb > 0:  # Invalid (red)
+                color = "red"
+            else:  # Unverified (yellow)
+                color = "yellow"
 
             axs[0, 1].add_patch(
                 patches.Rectangle(
                     (x_min, y_min),  # (x, y) position of the bottom left corner
                     width,  # width of the rectangle
                     height,  # height of the rectangle
-                    edgecolor='blue',  # outline color
-                    facecolor='none',  # no fill color
-                    linewidth=.5
+                    edgecolor='black',  # outline color
+                    facecolor=color,   # fill color
+                    linewidth=.1
                 )
             )
 
@@ -216,8 +222,7 @@ class Graphs:
         # UCB and LCB plot
         axs[1, 0].plot(ucbs, label='Max UCB')
         axs[1, 0].plot(lcbs, label='Min LCB')
-        axs[1, 0].axhline(y=tolerance, color='r', linestyle='--', label='Tolerance')
-        axs[1, 0].axhline(y=-tolerance, color='r', linestyle='--')
+        axs[1, 0].axhline(y=0, color='r', linestyle='--', label='Threshold')
         axs[1, 0].set_title('UCB and LCB Over Iterations')
         axs[1, 0].legend()
 
@@ -234,7 +239,7 @@ def mab_algorithm(
         confidence: float,
         kappa: float,
         max_iterations=10000,
-) -> tuple[bool, None, int, Any, int, int] | tuple[bool, ndarray, int, Any, int, int]:
+) -> tuple[(bool | None), None, int, Any, int, int] | tuple[bool, ndarray, int, Any, int, int]:
 
     root = TreeNode(initial_bounds)
     n_dims = len(initial_bounds)
@@ -281,28 +286,27 @@ def mab_algorithm(
         #     monitor.plot_metrics(50, root, epsilon, beta, lipschitz, initial_bounds[0])
         if t % 100000 == 1:
             print(f"Max UCB: {ucb}      Corresponding LCB: {lcb}")
+            monitor.plot_metrics(root, nodes)
 
         start_time_verify = time.process_time()
         # Select node with highest UCB
         selected_node, _ = nodes.pop(-1)
 
         # Sample and compute reward
+        for _ in range(0, 1):
+            sample = np.array([np.random.uniform(*b) for b in selected_node.bounds])
 
-        sample = np.array([np.random.uniform(*b) for b in selected_node.bounds])
+            x = state_to_column(sample)
+            x_next = random.choice(dynamics(x))
 
-        x = state_to_column(sample)
-        x_next = random.choice(dynamics(x))
+            reward = certificate(x_next) - certificate(x) + tolerance
 
-        reward = certificate(x_next) - certificate(x) + tolerance
-
-        selected_node.update(reward, sample)
-        sample_history.append((sample, reward))
-        rewards.append(reward)
+            selected_node.update(reward, sample)
+            sample_history.append((sample, reward))
+            rewards.append(reward)
         t += 1
 
         confidence_interval = compute_confidence_interval(selected_node, kappa, lipschitz_rho, lipschitz_f, confidence)
-        #stat = compute_statistical_error(selected_node, lipschitz_f, kappa, confidence)
-        #grid = compute_discretisation_error(selected_node, lipschitz_rho)
         ucb = selected_node.estimated_reward + confidence_interval
         lcb = selected_node.estimated_reward - confidence_interval
         ucbs.append(ucb)
@@ -313,7 +317,8 @@ def mab_algorithm(
         # termination conditions
         if ucb <= 0:
             result = "Certificate is VALID"
-            monitor.plot_metrics(root, tolerance)
+            nodes.add((selected_node, ucb))
+            monitor.plot_metrics(root, nodes)
             print(f"{result}, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
             rewards.clear()
@@ -322,13 +327,14 @@ def mab_algorithm(
             return True, None, t, np.average(run_times), monitor.depth(root), len(nodes)  # Certificate is valid
         if lcb > 0:
             result = "Certificate is INVALID"
-            monitor.plot_metrics(root, tolerance)
+            nodes.add((selected_node, ucb))
+            monitor.plot_metrics(root, nodes)
             print(f"{result}, iterations: {t}, tree depth: {monitor.depth(root)}")
             sample_history.clear()
             rewards.clear()
             ucbs.clear()
             lcbs.clear()
-            return False, state_to_column(np.array([np.random.uniform(*b) for b in selected_node.bounds])), t, np.average(run_times), monitor.depth(root), len(nodes)  # Certificate is invalid
+            return False, np.array([np.random.uniform(*b) for b in selected_node.bounds]), t, np.average(run_times), monitor.depth(root), len(nodes)  # Certificate is invalid
 
         # Split node
         if selected_node.depth < 10000 and compute_statistical_error(selected_node, lipschitz_f, kappa, confidence) < compute_discretisation_error(selected_node, lipschitz_rho):
@@ -352,13 +358,12 @@ def mab_algorithm(
 
             # monitor.update(root, child, t, beta, lipschitz)
         else:
-            nodes.add((selected_node,
-                       selected_node.estimated_reward + compute_confidence_interval(selected_node, kappa, lipschitz_rho, lipschitz_f, confidence)))
-        run_times.append(start_time_verify - time.process_time())
+            nodes.add((selected_node, ucb))
+            run_times.append(time.process_time() - start_time_verify)
 
     # Display the plot
     plt.show()
-    monitor.plot_metrics(root, tolerance)
+    monitor.plot_metrics(root, nodes)
 
     print(ucbs[-1], lcbs[-1])
     print(max(rewards))
@@ -366,4 +371,6 @@ def mab_algorithm(
     rewards.clear()
     ucbs.clear()
     lcbs.clear()
+    return None, None, t, np.average(run_times), monitor.depth(root), len(nodes)
+
     raise ValueError("Maximum iterations reached without conclusion")

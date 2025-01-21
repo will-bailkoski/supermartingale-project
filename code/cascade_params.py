@@ -8,7 +8,7 @@ m = 2  # number of assets
 
 # domain bounds
 max_bound = 30.0
-min_bound = -10.0
+min_bound = 10.0
 
 assert min_bound < max_bound, "bounds are incorrectly ordered"
 

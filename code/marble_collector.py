@@ -51,7 +51,8 @@ result_2 = mab_algorithm(initial_bounds=[params['bounds']] * params['n_dims'],
                          lipschitz=1,
                          reward_range=1,
                          max_iterations=params['max_its'],
-                         tolerance=params['epsilon']
+                         tolerance=params['epsilon'],
+                         confidence=0.95
                          )
 
 

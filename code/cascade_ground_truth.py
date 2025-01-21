@@ -92,7 +92,7 @@ def verify_model_milp(n, h, C, B, r, epsilon, W1, W2, B1, B2, domain):
     model.addConstr(
         E_V_X_tplus1 == gp.quicksum(values) / (2 ** n)
     )
-    model.addConstr(E_V_X_tplus1 >= V_x - epsilon + 1e-6)
+    model.addConstr(E_V_X_tplus1 - V_x >= - epsilon)
 
     # Solve the model
     model.optimize()
@@ -137,14 +137,14 @@ def verify_model_milp2(n, h, C, B, r, epsilon, W1, W2, B1, B2, domain):
         P_x[i] = Cx[i] + r[i] - Bphi[i]
 
     # State noise
-    scaling_factors = list(product([1.1, 0.9], repeat=n))
+    scaling_factors = list(product([0.1, -0.1], repeat=n))
 
     # Create variables for each possible outcome
     x_tplus1 = {}
     for index, factors in enumerate(scaling_factors):
         x_tplus1[index] = [None] * n
         for i in range(n):
-            x_tplus1[index][i] = factors[i] * P_x[i]
+            x_tplus1[index][i] = factors[i] * x[i] + P_x[i]
 
     # Neural network V(x)
     W1 = W1.tolist()

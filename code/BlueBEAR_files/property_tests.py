@@ -6,7 +6,7 @@ def is_in_invariant_set(x):
     return np.all(x < 0)
 
 
-def lipschitz_constant_statistical_test(P, calculated_val, num_samples, bounds):
+def lipschitz_constant_statistical_test(P, calculated_val, bounds, num_samples=10000, log=False):
 
     max_ratio = 0
     points = []
@@ -29,21 +29,25 @@ def lipschitz_constant_statistical_test(P, calculated_val, num_samples, bounds):
         if norm_diff_inputs > 1e-10:
             ratio = norm_diff_outputs / norm_diff_inputs
             max_ratio = max(max_ratio, ratio)
-            print(max_ratio)
             # Collect data for plotting
             points.append((x1[0], x1[1]))  # Use the first point for scatter
             gradient_norms.append(ratio)
 
-    # Convert points and gradient_norms to arrays for plotting
-    points = np.array(points)
-    gradient_norms = np.array(gradient_norms)
+    if log:
+        # Convert points and gradient_norms to arrays for plotting
+        points = np.array(points)
+        gradient_norms = np.array(gradient_norms)
 
-    # Plotting
-    plt.scatter(points[:, 0], points[:, 1], c=gradient_norms, cmap='viridis')
-    plt.colorbar(label='Lipschitz Constant')
-    plt.xlabel('x1')
-    plt.ylabel('x2')
-    plt.title('Color-mapped Scatter Plot of Lipschitz Constant')
-    plt.show()
+        # Plotting
+        plt.scatter(points[:, 0], points[:, 1], c=gradient_norms, cmap='viridis')
+        plt.colorbar(label='Lipschitz Constant')
+        plt.xlabel('x1')
+        plt.ylabel('x2')
+        plt.title('Color-mapped Scatter Plot of Lipschitz Constant')
+        plt.show()
 
-    assert max_ratio < calculated_val, "incorrect lipschitz constant calculated"
+        print(f"Maximum ratio found: {max_ratio}")
+
+    assert max_ratio <= calculated_val, f"incorrect lipschitz constant calculated. found {max_ratio}"
+
+    return max_ratio
